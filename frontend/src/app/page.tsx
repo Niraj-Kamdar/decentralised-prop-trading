@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Calculator } from "@/components/landing/Calculator";
 import { WaitlistForm } from "@/components/landing/WaitlistForm";
 import { Logo } from "@/components/Logo";
-import { APP_NAME } from "@/lib/config";
+import { APP_NAME, SITE_DESCRIPTION, SITE_URL, TAGLINE } from "@/lib/config";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 const STEPS = [
   { n: "1", t: "Investors fund the vault", d: "Anyone can deposit USDC. That pool is what traders borrow from." },
@@ -19,6 +22,14 @@ const INVESTOR_POINTS = [
 ];
 
 const FAQ = [
+  {
+    q: "What is decentralised prop trading?",
+    a: "A prop firm gives traders capital and splits the profits. Here a smart contract does that job: investors fund an on-chain vault, traders borrow from it with up to 10x leverage, and profits are split automatically when a trade closes. No challenges, no evaluation fees, no payout reviews.",
+  },
+  {
+    q: "Is this like copy trading?",
+    a: "Close. Instead of copying one trader's moves, investors deposit USDC into a vault that funds every trader and earn a share of each winning trade. Traders' own deposits absorb losses first.",
+  },
   {
     q: "Can I lose more than I put in?",
     a: "No. The most you can lose is your deposit. Trades close automatically as losses approach it, but if the price drops suddenly you can still lose all of it.",
@@ -64,9 +75,31 @@ function Points({ items }: { items: string[] }) {
   );
 }
 
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "Organization", name: APP_NAME, url: SITE_URL, logo: `${SITE_URL}/icon.svg` },
+    { "@type": "WebSite", name: APP_NAME, url: SITE_URL, description: SITE_DESCRIPTION },
+    {
+      "@type": "WebApplication",
+      name: APP_NAME,
+      url: SITE_URL,
+      applicationCategory: "FinanceApplication",
+      operatingSystem: "Web",
+      description: `${TAGLINE} ${SITE_DESCRIPTION}`,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+    },
+  ],
+};
+
 export default function Landing() {
   return (
     <div className="overflow-x-clip">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD).replace(/</g, "\\u003c") }} />
       <header className="sticky top-0 z-30 border-b border-line/70 bg-bg/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-[1080px] items-center justify-between gap-6 px-4 sm:px-8">
           <Logo />
@@ -94,7 +127,8 @@ export default function Landing() {
           />
           <div className="relative mx-auto grid max-w-[1080px] items-center gap-12 px-4 pb-20 pt-14 sm:px-8 md:pt-20 lg:grid-cols-[1.1fr_1fr]">
             <div>
-              <h1 className="text-[44px] leading-[1.04] tracking-display sm:text-[60px]">
+              <span className="eyebrow">Decentralised prop trading</span>
+              <h1 className="mt-3 text-[44px] leading-[1.04] tracking-display sm:text-[60px]">
                 Capital for traders.
                 <br />
                 <span className="text-accent">Returns for investors.</span>
