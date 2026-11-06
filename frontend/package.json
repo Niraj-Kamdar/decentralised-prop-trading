@@ -23,6 +23,7 @@
     "wagmi": "2.17.5"
   },
   "devDependencies": {
+    "@arkiv-network/sdk": "1.0.1",
     "@types/node": "22.18.8",
     "@types/react": "19.1.15",
     "@types/react-dom": "19.1.9",
