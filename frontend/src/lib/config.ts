@@ -1,6 +1,11 @@
 import { defineChain, getAddress, isAddress, zeroAddress, type Address } from "viem";
 
 export const APP_NAME = "Fulcrum";
+export const TAGLINE = "Capital for traders. Returns for investors.";
+export const SITE_DESCRIPTION =
+  "Decentralised prop trading on-chain. Traders get up to 10x buying power on crypto with losses capped at their deposit. Investors fund the vault and earn a share of every winning trade, like copy trading without picking a trader.";
+/** Canonical origin for metadata, sitemap and OG URLs. */
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://fulcrum-trade.vercel.app").replace(/\/$/, "");
 
 /**
  * - `mainnet`: Arc (5042).
