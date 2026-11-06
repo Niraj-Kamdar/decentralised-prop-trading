@@ -27,7 +27,7 @@ npm run typecheck && npm run build
 ```
 
 To run against a local fork of Arc mainnet instead, start `npm run fork` in the repo root first: it writes
-`.env.development.local` for `next dev` (see the root README).
+`.env.development.local` for `next dev` (see [DEVELOPMENT.md](../DEVELOPMENT.md)).
 
 ABIs in `src/abi/` are generated from the Foundry build: run `npm run build` in the repo root, then `npm run abi` here.
 
