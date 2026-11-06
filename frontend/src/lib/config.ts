@@ -1,6 +1,6 @@
 import { defineChain, getAddress, isAddress, zeroAddress, type Address, type Hex } from "viem";
 
-export const APP_NAME = "SpotProp";
+export const APP_NAME = "Fulcrum";
 
 export type Network = "mainnet" | "testnet";
 export const NETWORK: Network = process.env.NEXT_PUBLIC_NETWORK === "testnet" ? "testnet" : "mainnet";
