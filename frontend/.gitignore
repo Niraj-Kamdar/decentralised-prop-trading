@@ -5,3 +5,6 @@ out/
 .env
 .env.local
 *.tsbuildinfo
+.env.development.local
+.env.fork
+e2e/screenshots/

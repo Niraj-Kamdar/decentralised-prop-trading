@@ -188,13 +188,12 @@ contract LPVault is
     }
 
     function initialize(IERC20 usdc_, IERC4626 morphoVault_, address owner_) external initializer {
-        if (address(usdc_) == address(0) || address(morphoVault_) == address(0) || owner_ == address(0)) {
-            revert ZeroAddress();
-        }
+        if (address(usdc_) == address(0) || owner_ == address(0)) revert ZeroAddress();
         // On Arc the asset MUST be the 6-decimal ERC-20 precompile; never the 18-decimal native view.
         if (ArcConstants.isArc() && address(usdc_) != ArcConstants.USDC) revert InvalidAsset();
         if (IERC20Metadata(address(usdc_)).decimals() != ArcConstants.USDC_DECIMALS) revert InvalidAsset();
-        if (morphoVault_.asset() != address(usdc_)) revert InvalidAsset();
+        // MetaMorpho is optional: with address(0) every idle USDC stays in this vault (single-vault mode).
+        if (address(morphoVault_) != address(0) && morphoVault_.asset() != address(usdc_)) revert InvalidAsset();
 
         __ERC20_init("Spot Prop USDC", "spUSDC");
         __ERC4626_init(usdc_);
@@ -243,7 +242,7 @@ contract LPVault is
 
     /// @notice USDC that can leave the vault right now (local buffer + instantly withdrawable from Morpho).
     function availableLiquidity() public view returns (uint256) {
-        return _liquidUsdc() + morphoVault.maxWithdraw(address(this));
+        return _liquidUsdc() + _morphoMaxWithdraw();
     }
 
     /// @notice Available liquidity that is not earmarked for claims or the bonus pot.
@@ -696,11 +695,12 @@ contract LPVault is
         emit BonusParamsUpdated(bonusDuration_, bonusEmissionPeriod_, maxBonusAprBps_, minBonusDeposit_);
     }
 
-    /// @notice Move all Morpho-supplied liquidity to a new MetaMorpho vault.
+    /// @notice Move all Morpho-supplied liquidity to a new MetaMorpho vault. `address(0)` withdraws everything
+    ///         back into this vault and turns external yield off.
     function migrateMorphoVault(IERC4626 newVault) external onlyOwner nonReentrant {
-        if (address(newVault) == address(0) || newVault.asset() != asset()) revert InvalidAsset();
+        if (address(newVault) != address(0) && newVault.asset() != asset()) revert InvalidAsset();
         IERC4626 old = morphoVault;
-        uint256 shares = old.balanceOf(address(this));
+        uint256 shares = address(old) == address(0) ? 0 : old.balanceOf(address(this));
         uint256 moved = shares == 0 ? 0 : old.redeem(shares, address(this), address(this));
         morphoVault = newVault;
         emit MorphoVaultMigrated(address(old), address(newVault), moved);
@@ -723,7 +723,12 @@ contract LPVault is
     }
 
     function _morphoAssets() internal view returns (uint256) {
+        if (address(morphoVault) == address(0)) return 0;
         return morphoVault.convertToAssets(morphoVault.balanceOf(address(this)));
+    }
+
+    function _morphoMaxWithdraw() internal view returns (uint256) {
+        return address(morphoVault) == address(0) ? 0 : morphoVault.maxWithdraw(address(this));
     }
 
     function _calculateLockedProfit() internal view returns (uint256) {
@@ -749,7 +754,7 @@ contract LPVault is
         uint256 liquid = _liquidUsdc();
         if (liquid >= target) return;
         uint256 shortfall = target - liquid;
-        uint256 morphoMax = morphoVault.maxWithdraw(address(this));
+        uint256 morphoMax = _morphoMaxWithdraw();
         if (shortfall > morphoMax) revert InsufficientLiquidity(target, liquid + morphoMax);
         morphoVault.withdraw(shortfall, address(this), address(this));
     }
@@ -757,6 +762,7 @@ contract LPVault is
     /// @dev Never reverts: a Morpho supply cap or pause must not block deposits, repayments or settlement.
     ///      USDC reserved for claims always stays local.
     function _supplyIdle() internal {
+        if (address(morphoVault) == address(0)) return;
         uint256 liquid = _liquidUsdc();
         uint256 target = totalAssets().mulDiv(localBufferBps, BPS) + reservedForClaims;
         if (liquid <= target) return;

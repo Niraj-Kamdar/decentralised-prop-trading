@@ -48,7 +48,9 @@ contract ConfigureMVP is Script {
             pm.setAsset(assets[i], true, maxExposureBps, shock);
         }
 
-        vault.setBonusParams(vault.bonusDuration(), vault.bonusEmissionPeriod(), vault.maxBonusAprBps(), minBonusDeposit);
+        vault.setBonusParams(
+            vault.bonusDuration(), vault.bonusEmissionPeriod(), vault.maxBonusAprBps(), minBonusDeposit
+        );
 
         vm.stopBroadcast();
 

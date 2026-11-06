@@ -5,24 +5,24 @@ const FRIENDLY: Record<string, string> = {
   // PositionManager
   BelowMinNotional: "Position is below the minimum size. Increase your margin or leverage.",
   ExposureCapExceeded: "This market is at its open-interest cap right now. Try a smaller size.",
-  EntryPriceDeviation: "The pool price is too far from the oracle price. Try again or use a smaller size.",
+  EntryPriceDeviation: "The pool would fill too far from the 10-minute average price. Try a smaller size or wait for the pool to settle.",
   UnhealthyAtOpen: "Entry fill was too poor to open safely. Try a smaller size.",
-  MinOutBelowOracleBound: "Pool price moved too far from the oracle. Try again in a few seconds.",
   PositionNotOpen: "This position is already closed.",
   NotAuthorized: "Your wallet is not allowed to do this.",
   AssetNotEnabled: "This market is not enabled.",
-  RouterNotWhitelisted: "The configured swap router is not whitelisted.",
+  RouterNotWhitelisted: "The swap router is not whitelisted.",
+  SwapRouterNotSet: "Trading is not configured yet (no swap router).",
   InvalidTier: "That leverage tier is disabled.",
   InvalidAmount: "Invalid amount.",
   NothingToClaim: "Nothing to claim.",
   EnforcedPause: "New positions are paused. You can still close existing ones.",
-  // OracleVerifier
-  StalePrice:
-    "The price update went stale before your transaction landed (the oracle only accepts prices up to 5 seconds old). Please try again and confirm quickly.",
-  ConfidenceTooWide: "The market is too volatile right now (oracle confidence too wide). Try again shortly.",
+  // UniV4TwapOracle
+  TwapNotReady: "The price oracle is still collecting its 10 minutes of pool history. Try again shortly.",
+  TwapStale: "The price oracle has not been updated recently (keeper offline). Try again shortly.",
   FeedNotEnabled: "No oracle feed for this market.",
   // TraderProxy
-  InsufficientOutput: "Swap returned less than the minimum. Increase slippage tolerance or retry.",
+  InsufficientOutput:
+    "The Uniswap pool would pay less than allowed (your slippage limit, or the protocol's floor at the 10-minute average price). Retry, raise slippage, or wait for the pool to recover.",
   SwapCallFailed: "The Uniswap swap failed (insufficient pool liquidity or price moved).",
   // LPVault
   UtilizationCapExceeded: "The vault has no spare capacity for this position size right now.",
@@ -56,4 +56,4 @@ export function explainError(err: unknown): string {
   return String(err);
 }
 
-export const isStalePrice = (err: unknown) => err instanceof Error && /StalePrice/.test(err.message);
+export const isOracleNotReady = (err: unknown) => err instanceof Error && /TwapNotReady|TwapStale/.test(err.message);
