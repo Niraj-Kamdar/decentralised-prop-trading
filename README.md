@@ -14,13 +14,15 @@ The protocol charges no entry or exit fees, and the first 7-day epoch is free. L
 | `src/InsuranceReserve.sol` | First-loss bucket and ops-treasury bucket |
 | `src/OracleVerifier.sol` | Pyth pull oracle wrapper: data must be at most 5s old with confidence within 50 bps; prices normalised to 1e18 |
 | `script/Deploy.s.sol` | Arc deployment and wiring, then hand-off to governance through Ownable2Step |
+| `script/ConfigureMVP.s.sol` | Retunes a deployed protocol for a ~$100 vault with $5–$10 positions |
+| `frontend/` | Landing page with waitlist, dashboard, trade terminal, LP vault UI and keeper bot ([frontend/README.md](frontend/README.md)) |
 
 ## Build & test
 
 ```bash
 npm install                 # forge 1.7.1 + OpenZeppelin 5.4.0 from npm
 git submodule update --init # forge-std
-npm test                    # 66 tests incl. 512-run fuzzes and a 256x64 queue invariant suite
+npm test                    # 72 tests incl. 512-run fuzzes and a 256x64 queue invariant suite
 npm run build               # prints contract sizes (PositionManager ~17.7 KB)
 ```
 
