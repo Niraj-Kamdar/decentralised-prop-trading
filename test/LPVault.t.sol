@@ -13,11 +13,20 @@ contract LPVaultTest is BaseTest {
         assertEq(vault.totalAssets(), LP_DEPOSIT);
     }
 
-    function test_withdraw_pullsFromMorpho() public {
+    function test_queueClaim_pullsFromMorpho() public {
+        uint256 shares = vault.convertToShares(50_000e6);
         vm.prank(lp);
-        vault.withdraw(50_000e6, lp, lp);
-        assertEq(usdc.balanceOf(lp), 50_000e6);
-        assertEq(vault.totalAssets(), 50_000e6);
+        vault.requestRedeem(shares, lp, lp);
+        skip(30 days);
+        vault.processRedemptions(10);
+        assertGe(usdc.balanceOf(address(vault)), vault.reservedForClaims());
+
+        uint256 claimable = vault.maxRedeem(lp);
+        vm.prank(lp);
+        uint256 assets = vault.redeem(claimable, lp, lp);
+        assertApproxEqAbs(assets, 50_000e6, 1);
+        assertApproxEqAbs(usdc.balanceOf(lp), 50_000e6, 1);
+        assertApproxEqAbs(vault.totalAssets(), 50_000e6, 1);
     }
 
     function test_morphoYield_accruesToLPs() public {
@@ -25,18 +34,20 @@ contract LPVaultTest is BaseTest {
         assertApproxEqAbs(vault.totalAssets(), LP_DEPOSIT + 950e6, 1);
     }
 
-    function test_maxWithdraw_cappedByLiquidity() public {
+    function test_fulfilment_cappedByFreeLiquidity() public {
         vm.prank(owner);
-        pm.setAsset(address(cirBTC), true, 10_000);
-        _open(9_000e6, 10, true); // 81k lent out
+        pm.setAsset(address(cirBTC), true, 10_000, 0); // zero shock isolates the liquidity cap
+        _open(9_000e6, 10, true); // 81k lent out, 19k free
 
-        uint256 maxW = vault.maxWithdraw(lp);
-        assertEq(maxW, LP_DEPOSIT - 81_000e6);
+        uint256 shares = vault.balanceOf(lp);
         vm.prank(lp);
-        vm.expectRevert();
-        vault.withdraw(maxW + 1, lp, lp);
-        vm.prank(lp);
-        vault.withdraw(maxW, lp, lp);
+        uint256 id = vault.requestRedeem(shares, lp, lp);
+        skip(30 days);
+        vault.processRedemptions(10);
+
+        // Budget = free liquidity minus the residual stressed loss (one keeper bounty).
+        assertApproxEqAbs(vault.maxWithdraw(lp), 19_000e6 - 5e6, 2);
+        assertGt(vault.getRedeemRequest(id).shares, 0, "remainder stays queued");
     }
 
     function test_onlyPositionManagerHooks() public {
@@ -63,12 +74,18 @@ contract LPVaultTest is BaseTest {
         pm.closePosition(posId, s, _noUpdate());
 
         vm.prank(attacker);
-        uint256 assetsOut = vault.redeem(shares, attacker, attacker);
+        vault.requestRedeem(shares, attacker, attacker);
+        skip(30 days);
+        vault.processRedemptions(10);
+        uint256 claimShares = vault.maxRedeem(attacker);
+        vm.prank(attacker);
+        uint256 assetsOut = vault.redeem(claimShares, attacker, attacker);
         assertLe(assetsOut, 100_000e6);
 
-        // Honest LP still receives the full 12% cut once vested.
-        skip(12 hours);
-        assertApproxEqAbs(vault.convertToAssets(vault.balanceOf(lp)), LP_DEPOSIT + 240e6, 1);
+        // The 240 LP cut vests while the attacker's escrowed shares are still outstanding: the honest LP keeps
+        // their half, and the attacker's half is forfeited to the bonus pot instead of leaving with them.
+        assertApproxEqAbs(vault.convertToAssets(vault.balanceOf(lp)), LP_DEPOSIT + 120e6, 1e6);
+        assertApproxEqAbs(vault.bonusPot(), 120e6, 1e6);
     }
 
     function test_setParams_bounds() public {

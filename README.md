@@ -9,7 +9,7 @@ The protocol charges no entry or exit fees, and the first 7-day epoch is free. L
 | Contract | Role |
 |---|---|
 | `src/PositionManager.sol` | Entry point for traders and keepers: opens positions, rolls epochs, liquidates and runs the settlement waterfall |
-| `src/LPVault.sol` | `spUSDC` ERC-4626 vault (UUPS): Morpho buffer, lending to proxies, 12h linear profit vesting, 85% utilization cap |
+| `src/LPVault.sol` | `spUSDC` ERC-4626 vault (UUPS) with ERC-7540 async redemptions: Morpho buffer, lending to proxies, 12h linear profit vesting, 85% utilization cap, 30-day exit queue, stress bonus pot, solvency gate |
 | `src/TraderProxy.sol` | Per-position custody clone that swaps only through whitelisted routers and checks its own balance after each swap |
 | `src/InsuranceReserve.sol` | First-loss bucket and ops-treasury bucket |
 | `src/OracleVerifier.sol` | Pyth pull oracle wrapper: data must be at most 5s old with confidence within 50 bps; prices normalised to 1e18 |
@@ -20,7 +20,7 @@ The protocol charges no entry or exit fees, and the first 7-day epoch is free. L
 ```bash
 npm install                 # forge 1.7.1 + OpenZeppelin 5.4.0 from npm
 git submodule update --init # forge-std
-npm test                    # 35 tests incl. 512-run settlement-conservation fuzz
+npm test                    # 66 tests incl. 512-run fuzzes and a 256x64 queue invariant suite
 npm run build               # prints contract sizes (PositionManager ~17.7 KB)
 ```
 
@@ -54,10 +54,42 @@ npm run build               # prints contract sizes (PositionManager ~17.7 KB)
 11. **The LP vault applies a virtual-share offset of 6** against first-depositor inflation attacks, so `spUSDC`
     shares have 12 decimals.
 
+## LP lifecycle: exit queue, stress bonus and solvency gate
+
+Spec: issue #1. Deposits are synchronous; redemptions are asynchronous (ERC-7540). Traders pay nothing for any of
+this, and no part of it can block, delay or reduce a trader payout.
+
+1. **Request.** `requestRedeem(shares, controller, owner)` escrows the shares in a FIFO queue for `redeemCooldown`
+   (30 days). From that moment the shares **stop earning**: the payout is capped at their value when requested,
+   while losses during the wait still apply.
+2. **Stress penalty.** The pool is *stressed* when utilisation is at or above `stressUtilizationBps` (80%; the hard
+   allocation cap stays at 85%). A request made while stressed also forfeits `exitPenaltyBps` (25%) of the yield
+   earned *before* the request. It never touches principal: the payout is floored at `min(cost basis, value)`.
+3. **Fulfil.** Anyone can call `processRedemptions(n)`. Matured requests are paid FIFO, with partial fills, out of
+   `fulfilmentBudget()`, which is free liquidity minus the PositionManager's worst-case stressed LP loss (net of
+   insurance). The payout is reserved as local USDC; the controller claims with `redeem`/`withdraw`. Cancelling a
+   pending request also forfeits any queue-period gain.
+4. **Bonus pot.** Every forfeit (queue gain, stress penalty, cancel, broken ticket) goes into `bonusPot`. While
+   stressed, `depositWithBonus` locks a new deposit for `bonusDuration` (90 days) and streams the pot to it
+   (`pot / 90 days` per second, capped at 20% APR per ticket). At maturity anyone can call `claimTicket`; the bonus
+   is minted as `spUSDC`. `breakTicket` unlocks early and returns the accrued bonus to the pot. The scheme is
+   zero-sum: bonuses are only ever paid from the pot.
+5. **Solvency gate.** `PositionManager.stressedLPLoss()` bounds the LP loss if every asset dropped by its
+   `stressShockBps` (20%) and every position were liquidated at maximum slippage. Positions sit above
+   `V = B + D + mu*N`, so the loss per position is at most `B * k(asset, tier)`. The bound is exact from
+   per-(asset, tier) borrowed aggregates, with no loop over positions. It assumes keepers liquidate promptly.
+6. **Priority.** New trader allocations cannot use liquidity owed to pending requests (`AllocationBlockedByQueue`).
+
+Every parameter is owner-configurable within bounds (`setQueueParams`, `setBonusParams`, the per-asset shock in
+`setAsset`). Existing requests and tickets keep the terms they were created with.
+
 ## Known gaps before audit
 
 - `OracleVerifier` integrates Pyth only. Chainlink fallback is not implemented, and USDC is assumed to equal $1.
 - No Uniswap v4 adapter is included yet (see decision 9).
-- Bad debt hits the share price immediately. An LP watching prices could withdraw ahead of a gap down.
 - `executeTrigger` lets the trader or an operator raise `trailingStopPrice`. There is no on-chain high-water tracking.
 - The tests use a constant-price router. No fork tests have been run against real Arc pools or MetaMorpho.
+- The solvency-gate bound assumes keepers liquidate promptly. A position left below its threshold can lose more
+  than the bound predicts.
+- New allocations are blocked by *all* pending requests, not just matured ones. This is more conservative than
+  the spec.

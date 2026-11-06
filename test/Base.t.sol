@@ -72,8 +72,8 @@ abstract contract BaseTest is Test {
         vault.setPositionManager(address(pm));
         insurance.setPositionManager(address(pm));
         oracle.setConsumer(address(pm), true);
-        pm.setAsset(address(cirBTC), true, 3_500);
-        pm.setAsset(address(weth), true, 3_500);
+        pm.setAsset(address(cirBTC), true, 3_500, 2_000);
+        pm.setAsset(address(weth), true, 3_500, 2_000);
         pm.setRouter(address(router), true);
         vm.stopPrank();
 

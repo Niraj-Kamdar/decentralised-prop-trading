@@ -55,8 +55,8 @@ contract Deploy is Script {
         vault.setPositionManager(address(pm));
         insurance.setPositionManager(address(pm));
         oracle.setConsumer(address(pm), true);
-        pm.setAsset(cirBTC, true, 3_500);
-        pm.setAsset(weth, true, 3_500);
+        pm.setAsset(cirBTC, true, 3_500, 2_000);
+        pm.setAsset(weth, true, 3_500, 2_000);
         pm.setRouter(vm.envAddress("ROUTER"), true);
         pm.setGuardian(vm.envAddress("GUARDIAN"));
 
