@@ -13,13 +13,20 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 import {TraderProxy} from "./TraderProxy.sol";
 import {ArcConstants} from "./libraries/ArcConstants.sol";
-import {ILPVault, IInsuranceReserve, IOracleVerifier, ITraderProxy, IRouterRegistry} from "./interfaces/IProtocol.sol";
+import {
+    ILPVault,
+    IInsuranceReserve,
+    IOracleVerifier,
+    ITraderProxy,
+    IRouterRegistry,
+    IRiskView
+} from "./interfaces/IProtocol.sol";
 
 /// @title PositionManager
 /// @notice Orchestrates leveraged spot positions: clone-per-position custody, vault borrowing, 7-day epochs with
 ///         lazy 8% APR rollover debt, oracle-gated liquidations, and the settlement / bad-debt waterfall.
 /// @dev No function is payable and there is no receive(): native USDC (18-dec msg.value) is always rejected.
-contract PositionManager is IRouterRegistry, Ownable2Step, Pausable, ReentrancyGuard {
+contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
 
@@ -32,6 +39,7 @@ contract PositionManager is IRouterRegistry, Ownable2Step, Pausable, ReentrancyG
     uint256 public constant YEAR = 365 days;
     /// @dev Bound on epochs accrued in one call so a long-abandoned position can always be processed.
     uint256 public constant MAX_EPOCH_CATCH_UP = 52;
+    uint256 public constant MAX_STRESS_SHOCK_BPS = 9_000;
 
     // ---------------------------------------------------------------------
     // Types
@@ -80,6 +88,7 @@ contract PositionManager is IRouterRegistry, Ownable2Step, Pausable, ReentrancyG
     struct AssetConfig {
         bool enabled;
         uint16 maxExposureBps; // open-interest cap as share of LPVault.totalAssets()
+        uint16 stressShockBps; // adverse price move assumed by the LP withdrawal solvency gate
     }
 
     struct SwapInstruction {
@@ -117,6 +126,14 @@ contract PositionManager is IRouterRegistry, Ownable2Step, Pausable, ReentrancyG
     mapping(address token => uint256) public assetExposure; // sum of open notional
     mapping(address router => bool) public isWhitelistedRouter;
     mapping(address trader => mapping(address operator => bool)) public isOperator;
+
+    /// @dev Per-(asset, tier) borrowed principal; drives the worst-case LP loss bound read by the LP vault gate.
+    mapping(address token => mapping(uint8 tier => uint256)) public borrowedByAssetTier;
+    uint256 public openPositionCount;
+    address[] internal _assetList;
+    uint8[] internal _tierList;
+    mapping(address token => bool) internal _assetListed;
+    mapping(uint8 tier => bool) internal _tierListed;
 
     mapping(address trader => uint256) public claimableUSDC;
     uint256 public totalClaimable;
@@ -257,6 +274,8 @@ contract PositionManager is IRouterRegistry, Ownable2Step, Pausable, ReentrancyG
         uint256 cap = Math.mulDiv(lpVault.totalAssets(), a.maxExposureBps, BPS);
         if (exposureAfter > cap) revert ExposureCapExceeded(p.spotToken, exposureAfter, cap);
         assetExposure[p.spotToken] = exposureAfter;
+        borrowedByAssetTier[p.spotToken][p.tier] += borrowed;
+        ++openPositionCount;
 
         posId = ++positionCount;
         address proxy = Clones.cloneDeterministic(proxyImplementation, bytes32(posId));
@@ -326,6 +345,7 @@ contract PositionManager is IRouterRegistry, Ownable2Step, Pausable, ReentrancyG
 
         pos.borrowedPrincipal -= amount.toUint128();
         pos.userMargin += amount.toUint128();
+        borrowedByAssetTier[pos.spotToken][pos.tier] -= amount;
 
         usdc.forceApprove(address(lpVault), amount);
         lpVault.repayFromPosition(amount, amount, 0);
@@ -468,6 +488,39 @@ contract PositionManager is IRouterRegistry, Ownable2Step, Pausable, ReentrancyG
         return Clones.predictDeterministicAddress(proxyImplementation, bytes32(posId));
     }
 
+    /// @notice Worst-case LP principal loss if every asset moved down by its `stressShockBps` and every position
+    ///         were liquidated at the worst allowed slippage.
+    /// @dev Assumes keepers keep live positions above their liquidation threshold: V >= B + D + mu*N. Since
+    ///      addMargin only lowers B while N is fixed, N >= B*L/(L-1), so each position's loss is bounded by
+    ///      B * k(asset, tier) with k = s' - (1 - s') * mu * L / (L - 1), where 1 - s' = (1 - shock)(1 - liqSlip).
+    ///      The bound is linear in B, so per-(asset, tier) aggregates give it exactly without iterating positions.
+    function stressedLPLoss() public view returns (uint256 loss) {
+        uint256 keep = BPS - maxLiqSlippageBps;
+        uint256 nAssets = _assetList.length;
+        uint256 nTiers = _tierList.length;
+        for (uint256 i; i < nAssets; ++i) {
+            address token = _assetList[i];
+            uint256 survive = (BPS - assetConfigs[token].stressShockBps) * keep; // (1 - s'), BPS^2-scaled
+            uint256 sPrime = BPS * BPS - survive;
+            for (uint256 j; j < nTiers; ++j) {
+                uint8 tier = _tierList[j];
+                uint256 borrowed = borrowedByAssetTier[token][tier];
+                if (borrowed == 0) continue;
+                uint256 cushion = Math.mulDiv(survive, uint256(tiers[tier].maintenanceBps) * tier, BPS * (tier - 1));
+                if (sPrime <= cushion) continue;
+                loss += Math.mulDiv(borrowed, sPrime - cushion, BPS * BPS, Math.Rounding.Ceil);
+            }
+        }
+        loss += openPositionCount * keeperBounty;
+    }
+
+    /// @inheritdoc IRiskView
+    function stressedNetLoss() external view returns (uint256) {
+        uint256 loss = stressedLPLoss();
+        uint256 cover = insurance.insurancePoolBalance();
+        return loss > cover ? loss - cover : 0;
+    }
+
     /// @notice Rollover fee for one 7-day epoch on `borrowed` principal (rounded up in favour of LPs).
     function epochRolloverFee(uint256 borrowed) public view returns (uint256) {
         return Math.mulDiv(borrowed, rolloverAprBps * EPOCH_DURATION, BPS * YEAR, Math.Rounding.Ceil);
@@ -477,12 +530,17 @@ contract PositionManager is IRouterRegistry, Ownable2Step, Pausable, ReentrancyG
     // Governance (AD-01 / AD-02)
     // ---------------------------------------------------------------------
 
-    function setAsset(address token, bool enabled, uint16 maxExposureBps) external onlyOwner {
+    function setAsset(address token, bool enabled, uint16 maxExposureBps, uint16 stressShockBps) external onlyOwner {
         if (token == address(0) || token == address(usdc)) revert InvalidAsset();
-        if (maxExposureBps > BPS) revert InvalidParams();
+        if (maxExposureBps > BPS || stressShockBps > MAX_STRESS_SHOCK_BPS) revert InvalidParams();
         // Requires an oracle feed to exist (OracleVerifier.getPrice reverts otherwise when used).
-        AssetConfig memory cfg = AssetConfig({enabled: enabled, maxExposureBps: maxExposureBps});
+        AssetConfig memory cfg =
+            AssetConfig({enabled: enabled, maxExposureBps: maxExposureBps, stressShockBps: stressShockBps});
         assetConfigs[token] = cfg;
+        if (!_assetListed[token]) {
+            _assetListed[token] = true;
+            _assetList.push(token);
+        }
         emit AssetSet(token, cfg);
     }
 
@@ -550,6 +608,10 @@ contract PositionManager is IRouterRegistry, Ownable2Step, Pausable, ReentrancyG
         if (tier < 2 || cfg.maintenanceBps == 0 || cfg.maintenanceBps >= BPS / tier) revert InvalidTier(tier);
         if (uint256(cfg.lpProfitBps) + cfg.treasuryProfitBps > BPS) revert InvalidParams();
         tiers[tier] = cfg;
+        if (!_tierListed[tier]) {
+            _tierListed[tier] = true;
+            _tierList.push(tier);
+        }
         emit TierSet(tier, cfg);
     }
 
@@ -600,6 +662,8 @@ contract PositionManager is IRouterRegistry, Ownable2Step, Pausable, ReentrancyG
         bool isLiquidation = reason == CloseReason.LIQUIDATION;
         pos.status = isLiquidation ? PositionStatus.LIQUIDATED : PositionStatus.CLOSED;
         assetExposure[pos.spotToken] -= pos.notional;
+        borrowedByAssetTier[pos.spotToken][pos.tier] -= pos.borrowedPrincipal;
+        --openPositionCount;
 
         address proxy = pos.proxy;
         uint256 usdcOut = ITraderProxy(proxy)

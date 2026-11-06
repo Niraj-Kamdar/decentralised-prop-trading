@@ -36,3 +36,8 @@ interface ITraderProxy {
 interface IRouterRegistry {
     function isWhitelistedRouter(address router) external view returns (bool);
 }
+
+interface IRiskView {
+    /// @notice Worst-case LP principal loss from open positions under the configured stress shock, net of insurance.
+    function stressedNetLoss() external view returns (uint256);
+}

@@ -59,7 +59,7 @@ contract PositionManagerTest is BaseTest {
 
     function test_open_revertsOverUtilizationCap() public {
         vm.prank(owner);
-        pm.setAsset(address(cirBTC), true, 10_000);
+        pm.setAsset(address(cirBTC), true, 10_000, 2_000);
         _open(9_000e6, 10, true); // B = 81k <= 85k
         _expectOpenRevert(500e6, 10, ""); // 81k + 4.5k > 85k (LPVault.UtilizationCapExceeded)
     }
