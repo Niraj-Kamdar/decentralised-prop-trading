@@ -1,6 +1,6 @@
 import { defineChain, getAddress, isAddress, zeroAddress, type Address } from "viem";
 
-export const APP_NAME = "SpotProp";
+export const APP_NAME = "Fulcrum";
 
 /**
  * - `mainnet`: Arc (5042).

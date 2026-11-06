@@ -134,7 +134,7 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
         <Segmented options={TIERS} value={tier as (typeof TIERS)[number]} onChange={setTier} render={(x) => `${x}x`} />
       </div>
 
-      <div className="rounded-lg bg-bg p-3">
+      <div className="rounded-lg bg-panel2 p-3">
         <Row label="Position size" value={usd(notional)} />
         <Row label="Borrowed from LPs" value={usd(borrowed)} />
         <Row label={`You receive (est.)`} value={tokens > 0 ? `${tokens.toLocaleString("en-US", { maximumFractionDigits: 8 })} ${asset.symbol}` : "—"} />
@@ -182,7 +182,7 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
       {!isConnected ? (
         <p className="rounded-lg border border-line p-3 text-center text-sm text-muted">Connect a wallet to trade.</p>
       ) : (
-        <button className="btn-up w-full py-3 text-base" disabled={!!problem || busy} onClick={submit}>
+        <button className="btn-primary w-full py-3 text-base" disabled={!!problem || busy} onClick={submit}>
           {busy ? "Working…" : `Buy ${asset.symbol} with ${tier}x`}
         </button>
       )}

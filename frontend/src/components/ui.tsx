@@ -44,14 +44,14 @@ export function Segmented<T extends string | number>({
   render?: (v: T) => ReactNode;
 }) {
   return (
-    <div className="grid rounded-lg border border-line bg-bg p-1" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    <div className="grid rounded-lg border border-line bg-panel2 p-1" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
       {options.map((o) => (
         <button
           key={String(o)}
           type="button"
           onClick={() => onChange(o)}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-            o === value ? "bg-panel2 text-fg shadow" : "text-muted hover:text-fg"
+          className={`rounded px-3 py-1.5 text-sm font-normal transition-colors duration-150 ${
+            o === value ? "bg-panel text-fg shadow ring-1 ring-line" : "text-muted hover:text-fg"
           }`}
         >
           {render ? render(o) : String(o)}
@@ -102,7 +102,7 @@ export function AmountInput({
   placeholder?: string;
 }) {
   return (
-    <div className="flex items-center rounded-lg border border-line bg-bg focus-within:border-accent">
+    <div className="flex items-center rounded border border-line bg-panel transition-colors focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgb(var(--accent)/0.15)]">
       <input
         inputMode="decimal"
         value={value}
@@ -130,10 +130,10 @@ export function Empty({ children }: { children: ReactNode }) {
 export function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-fg/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="card w-full max-w-md p-6 shadow-float" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">{title}</h3>
+          <h3 className="text-xl">{title}</h3>
           <button onClick={onClose} className="text-muted hover:text-fg" aria-label="Close">
             ×
           </button>

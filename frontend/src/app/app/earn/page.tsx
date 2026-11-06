@@ -20,7 +20,7 @@ export default function EarnPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">Earn</h1>
+        <h1 className="text-[32px] leading-tight tracking-heading">Earn</h1>
         <p className="mt-1 text-sm text-muted">
           Deposit USDC into the vault that funds traders. You earn a share of their profits, weekly fees on what they borrow, and
           lending yield on idle cash.
@@ -83,7 +83,7 @@ function YourPosition({ lp, connected }: { lp?: LPState; connected: boolean }) {
   const earned = lp ? toUsdc(lp.value) - toUsdc(lp.costBasis) : null;
   return (
     <div className="card p-5">
-      <h2 className="font-semibold">Your liquidity</h2>
+      <h2 className="text-lg">Your liquidity</h2>
       <div className="mt-4 grid grid-cols-2 gap-5 md:grid-cols-4">
         <Stat label="Current value" value={lp ? usd(lp.value) : "—"} />
         <Stat label="Deposited" value={lp ? usd(lp.costBasis) : "—"} sub="Cost basis" />
@@ -91,7 +91,7 @@ function YourPosition({ lp, connected }: { lp?: LPState; connected: boolean }) {
         <Stat label="spUSDC" value={lp ? Number(formatUnits(lp.shares, 12)).toLocaleString("en-US", { maximumFractionDigits: 4 }) : "—"} />
       </div>
       {lp && lp.claimableAssets > 0n && (
-        <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border border-up/40 bg-up/10 p-3">
+        <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border border-up/30 bg-up/5 p-3">
           <div className="text-sm">
             <div className="font-medium text-up">{usd(lp.claimableAssets)} ready to withdraw</div>
             <div className="text-muted">Your withdrawal request has been paid out.</div>
@@ -260,7 +260,7 @@ function Requests({ lp, proto }: { lp?: LPState; proto?: ProtocolState }) {
   return (
     <div className="card">
       <div className="border-b border-line px-5 py-3">
-        <h2 className="font-semibold">Withdrawal requests</h2>
+        <h2 className="text-lg">Withdrawal requests</h2>
       </div>
       <div className="divide-y divide-line/60">
         {reqs.map((r) => {
@@ -273,10 +273,10 @@ function Requests({ lp, proto }: { lp?: LPState; proto?: ProtocolState }) {
               <div className="min-w-[220px] flex-1">
                 <div className="flex items-center gap-2 text-sm">
                   <span className="num font-medium">{usd(r.assetsAtRequest)}</span>
-                  <span className={`pill ${pending ? "bg-accent/15 text-accent" : "bg-up/15 text-up"}`}>
+                  <span className={`pill ${pending ? "border border-accent/20 bg-accent/5 text-accent" : "border border-up/30 bg-up/5 text-up"}`}>
                     {pending ? (matured ? "In queue for payout" : "Waiting") : r.status === "FULFILLED" ? "Paid out" : r.status.toLowerCase()}
                   </span>
-                  {r.stressedAtRequest && <span className="pill bg-warn/15 text-warn">busy-exit</span>}
+                  {r.stressedAtRequest && <span className="pill border border-warn/30 bg-warn/5 text-warn">busy-exit</span>}
                 </div>
                 <div className="mt-2 h-1.5 overflow-hidden rounded bg-line">
                   <div className="h-full bg-accent" style={{ width: `${progress * 100}%` }} />
@@ -327,7 +327,7 @@ function Tickets({ lp }: { lp?: LPState }) {
   return (
     <div className="card">
       <div className="border-b border-line px-5 py-3">
-        <h2 className="font-semibold">Bonus deposits</h2>
+        <h2 className="text-lg">Bonus deposits</h2>
       </div>
       <div className="divide-y divide-line/60">
         {tickets.map((t) => {
@@ -375,14 +375,14 @@ function HowItWorks({ proto }: { proto?: ProtocolState }) {
   const t10 = proto?.pm.tiers[10];
   return (
     <div className="card p-4 text-sm">
-      <h3 className="font-semibold">How LPs earn</h3>
-      <div className="mt-3 rounded-lg bg-bg p-3">
+      <h3 className="text-lg">How LPs earn</h3>
+      <div className="mt-3 rounded-lg bg-panel2 p-3">
         <Row label="Share of 5x profits" value={t5 ? pct(t5.lpProfitBps, 0) : "8%"} tone="up" />
         <Row label="Share of 10x profits" value={t10 ? pct(t10.lpProfitBps, 0) : "12%"} tone="up" />
         <Row label="Weekly fees (after week 1)" value={`80% of ${proto ? pct(proto.pm.rolloverAprBps, 0) : "8%"} APR`} tone="up" />
         <Row label="Idle cash" value="Lending yield" tone="up" />
       </div>
-      <h3 className="mt-4 font-semibold">What protects you</h3>
+      <h3 className="mt-4 text-lg">What protects you</h3>
       <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
         <li>Trades are liquidated before they can lose more than the trader's margin.</li>
         <li>Liquidation penalties and fees fund an insurance pool that covers bad debt first.</li>
