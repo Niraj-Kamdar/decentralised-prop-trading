@@ -39,7 +39,7 @@ export function PositionsTable({ positions, loading }: { positions: Position[] |
 
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`rounded px-3 py-1 text-sm font-medium ${active ? "bg-panel2 text-fg" : "text-muted hover:text-fg"}`}>
+    <button onClick={onClick} aria-pressed={active} className={`relative px-3 py-2 text-sm transition-colors duration-150 ${active ? "text-fg after:absolute after:inset-x-3 after:-bottom-2 after:h-0.5 after:bg-accent" : "text-muted hover:text-fg"}`}>
       {children}
     </button>
   );
@@ -57,10 +57,10 @@ function OpenTable({ rows, loading }: { rows: Position[]; loading: boolean }) {
     <>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[960px] text-sm">
-          <thead className="text-left text-xs text-muted">
+          <thead className="bg-panel2 text-left text-xs text-muted">
             <tr className="border-b border-line">
               {["Market", "Size", "Margin", "Entry", "Mark", "Liq. price", "PnL (if closed now)", "Epoch", ""].map((h) => (
-                <th key={h} className="px-3 py-2 font-medium">
+                <th key={h} className="px-3 py-2.5 font-normal">
                   {h}
                 </th>
               ))}
@@ -72,10 +72,10 @@ function OpenTable({ rows, loading }: { rows: Position[]; loading: boolean }) {
               const v = positionView(pos, asset?.decimals ?? 18, asset ? get(asset.pythId)?.price18 : undefined, tierParams(proto, pos.tier));
               const atRisk = v.health !== null && v.health < 0.25;
               return (
-                <tr key={pos.id.toString()} className="border-b border-line/60 last:border-0">
+                <tr key={pos.id.toString()} className="border-b border-line last:border-0 transition-colors hover:bg-panel2/60">
                   <td className="px-3 py-3">
                     <div className="font-medium">
-                      {asset?.symbol ?? "?"} <span className="pill ml-1 bg-accent/15 text-accent">{pos.tier}x</span>
+                      {asset?.symbol ?? "?"} <span className="pill ml-1 border border-accent/20 bg-accent/5 text-accent">{pos.tier}x</span>
                     </div>
                     <a href={addressUrl(pos.proxy)} target="_blank" rel="noreferrer" className="text-xs text-muted hover:text-fg">
                       #{pos.id.toString()} ↗
@@ -212,7 +212,7 @@ function CloseModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onCl
 
   return (
     <Modal open onClose={onClose} title={`Close ${asset.symbol} ${pos.tier}x`}>
-      <div className="rounded-lg bg-bg p-3">
+      <div className="rounded-lg bg-panel2 p-3">
         <Row label="Sell" value={`${v.tokens.toLocaleString("en-US", { maximumFractionDigits: 8 })} ${asset.symbol}`} />
         <Row label="Value at oracle price" value={usd(v.markValue)} />
         <Row label="Repay LPs" value={usd(toUsdc(pos.borrowedPrincipal) + v.rolloverDebt)} />
@@ -266,7 +266,7 @@ function MarginModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onC
         you close, before any profit is split.
       </p>
       <AmountInput value={amount} onChange={setAmount} max={formatUnits(pos.borrowedPrincipal, 6)} />
-      <div className="mt-3 rounded-lg bg-bg p-3">
+      <div className="mt-3 rounded-lg bg-panel2 p-3">
         <Row label="Borrowed now" value={usd(pos.borrowedPrincipal)} />
         <Row label="Borrowed after" value={usd(toUsdc(pos.borrowedPrincipal) - toUsdc(value))} />
       </div>
@@ -339,10 +339,10 @@ function HistoryTable({ rows }: { rows: Position[] }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] text-sm">
-        <thead className="text-left text-xs text-muted">
+        <thead className="bg-panel2 text-left text-xs text-muted">
           <tr className="border-b border-line">
             {["Market", "Size", "Margin", "Opened", "Outcome", ""].map((h) => (
-              <th key={h} className="px-3 py-2 font-medium">
+              <th key={h} className="px-3 py-2.5 font-normal">
                 {h}
               </th>
             ))}
@@ -352,15 +352,15 @@ function HistoryTable({ rows }: { rows: Position[] }) {
           {rows.map((pos) => {
             const asset = assetByAddress(pos.spotToken);
             return (
-              <tr key={pos.id.toString()} className="border-b border-line/60 last:border-0">
+              <tr key={pos.id.toString()} className="border-b border-line last:border-0 transition-colors hover:bg-panel2/60">
                 <td className="px-3 py-3 font-medium">
-                  {asset?.symbol ?? "?"} <span className="pill ml-1 bg-panel2 text-muted">{pos.tier}x</span>
+                  {asset?.symbol ?? "?"} <span className="pill ml-1 border border-line bg-panel2 text-muted">{pos.tier}x</span>
                 </td>
                 <td className="num px-3 py-3">{usd(pos.notional)}</td>
                 <td className="num px-3 py-3">{usd(pos.userMargin)}</td>
                 <td className="px-3 py-3 text-muted">{dateTime(pos.openedAt)}</td>
                 <td className="px-3 py-3">
-                  <span className={`pill ${pos.status === "LIQUIDATED" ? "bg-down/15 text-down" : "bg-panel2 text-muted"}`}>
+                  <span className={`pill ${pos.status === "LIQUIDATED" ? "border border-down/30 bg-down/5 text-down" : "border border-line bg-panel2 text-muted"}`}>
                     {pos.status === "LIQUIDATED" ? "Liquidated" : "Closed"}
                   </span>
                 </td>

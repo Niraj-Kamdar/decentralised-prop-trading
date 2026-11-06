@@ -29,7 +29,7 @@ export function PriceChart({ asset, livePrice, liqPrices = [] }: { asset: Asset;
     const c = createChart(el.current, {
       autoSize: true,
       layout: { background: { color: "transparent" }, textColor: rgb("--muted"), fontSize: 11 },
-      grid: { vertLines: { color: "rgba(255,255,255,0.04)" }, horzLines: { color: "rgba(255,255,255,0.04)" } },
+      grid: { vertLines: { color: "rgba(6,27,49,0.05)" }, horzLines: { color: "rgba(6,27,49,0.05)" } },
       rightPriceScale: { borderColor: rgb("--line") },
       timeScale: { borderColor: rgb("--line"), timeVisible: true },
       crosshair: { mode: 0 },
@@ -88,7 +88,7 @@ export function PriceChart({ asset, livePrice, liqPrices = [] }: { asset: Asset;
     const s = series.current;
     if (!s || !liqKey) return;
     const lines = liqKey.split(",").map(Number).map((p) =>
-      s.createPriceLine({ price: p, color: "rgba(244,84,100,0.8)", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Liq." }),
+      s.createPriceLine({ price: p, color: "rgba(216,28,86,0.85)", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Liq." }),
     );
     return () => lines.forEach((l) => s.removePriceLine(l));
   }, [liqKey]);

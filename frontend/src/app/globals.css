@@ -2,20 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Fulcrum theme. Colors are space-separated RGB so Tailwind can apply alpha. */
 :root {
-  --bg: 9 11 16;
-  --panel: 16 19 27;
-  --panel2: 23 27 38;
-  --line: 37 43 58;
-  --fg: 236 239 245;
-  --muted: 140 148 166;
-  --accent: 99 140 255;
-  --up: 34 197 140;
-  --down: 244 84 100;
-  --warn: 245 176 65;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  color-scheme: dark;
+  --bg: 255 255 255;
+  --panel: 255 255 255;
+  --panel2: 246 249 252; /* cool pale surface for nested panels */
+  --line: 229 237 245;
+  --fg: 6 27 49; /* deep navy headings */
+  --fg2: 39 57 81; /* dark slate labels */
+  --muted: 100 116 141; /* slate body */
+  --accent: 83 58 253; /* violet: actions and links only */
+  --accent-hover: 68 52 212;
+  --brand-dark: 28 30 84; /* indigo band */
+  --up: 16 140 61;
+  --down: 216 28 86;
+  --warn: 155 104 41;
+
+  --font-sans: "sohne-var", "Söhne", "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
+  --font-mono: "Source Code Pro", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --elev-ambient: rgba(23, 23, 23, 0.06) 0 3px 6px;
+  --elev-raised: rgba(50, 50, 93, 0.25) 0 30px 45px -30px, rgba(0, 0, 0, 0.1) 0 18px 36px -18px;
+  --elev-float: rgba(3, 3, 39, 0.25) 0 14px 21px -14px, rgba(0, 0, 0, 0.1) 0 8px 17px -8px;
+  --focus-ring: 0 0 0 2px rgb(var(--accent)), 0 0 0 5px rgb(var(--accent) / 0.25);
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  color-scheme: light;
 }
 
 html,
@@ -26,44 +38,84 @@ body {
 
 body {
   font-family: var(--font-sans);
+  font-weight: 300;
+  line-height: 1.5;
+  font-feature-settings: "ss01";
   -webkit-font-smoothing: antialiased;
 }
 
+h1,
+h2,
+h3 {
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  color: rgb(var(--fg));
+}
+
+strong,
+b {
+  font-weight: 400;
+}
+
+a,
+button,
+summary,
+input,
+select,
+textarea {
+  transition-timing-function: var(--ease);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 4px;
+}
+
+/* Financial figures: tabular digits in the text face. */
 .num {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum", "ss01";
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 @layer components {
   .card {
-    @apply rounded-xl border border-line bg-panel;
+    @apply rounded-lg border border-line bg-panel;
+  }
+  .card-raised {
+    @apply rounded-xl bg-panel shadow-raised;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-normal transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-accent text-white hover:bg-accent/90;
+    @apply btn bg-accent text-white hover:bg-accent-hover disabled:hover:bg-accent;
   }
   .btn-secondary {
-    @apply btn border border-line bg-panel2 text-fg hover:border-muted/60;
+    @apply btn border border-accent/30 bg-transparent text-accent hover:bg-accent/5;
   }
   .btn-ghost {
-    @apply btn text-muted hover:bg-panel2 hover:text-fg;
+    @apply btn text-fg2 hover:bg-panel2 hover:text-fg;
   }
   .btn-up {
-    @apply btn bg-up text-black hover:bg-up/90;
+    @apply btn bg-up text-white hover:bg-up/90;
   }
   .btn-down {
     @apply btn bg-down text-white hover:bg-down/90;
   }
   .input {
-    @apply w-full rounded-lg border border-line bg-bg px-3 py-2 text-fg outline-none placeholder:text-muted/60 focus:border-accent;
+    @apply w-full rounded border border-line bg-panel px-3 py-2 text-fg outline-none placeholder:text-muted focus:border-accent;
   }
   .label {
-    @apply text-xs font-medium uppercase tracking-wide text-muted;
+    @apply text-xs font-normal text-muted;
+  }
+  .eyebrow {
+    @apply text-xs font-normal uppercase tracking-[0.08em] text-accent;
   }
   .pill {
-    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center rounded px-1.5 py-px text-xs font-normal;
   }
 }
 
@@ -75,4 +127,42 @@ input[type="number"]::-webkit-inner-spin-button {
 
 input[type="range"] {
   accent-color: rgb(var(--accent));
+}
+
+/* Custom track so the background can paint the auto-close zone. */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 20px;
+  width: 20px;
+  border-radius: 9999px;
+  background: rgb(var(--panel));
+  border: 2px solid rgb(var(--accent));
+  box-shadow: var(--elev-ambient);
+}
+.range::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 9999px;
+  background: rgb(var(--panel));
+  border: 2px solid rgb(var(--accent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
 }

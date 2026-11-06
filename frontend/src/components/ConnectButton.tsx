@@ -27,7 +27,7 @@ export function ConnectButton() {
 
   if (isConnected && chainId !== arc.id) {
     return (
-      <button className="btn bg-warn text-black" onClick={() => switchChain({ chainId: arc.id })}>
+      <button className="btn bg-warn text-white hover:bg-warn/90" onClick={() => switchChain({ chainId: arc.id })}>
         Switch to {arc.name}
       </button>
     );

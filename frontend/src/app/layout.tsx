@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Put up $10, trade up to $100 of BTC or ETH on Uniswap. Your loss is capped at your margin. Liquidity providers fund the trades and share the profits.",
 };
 
-export const viewport: Viewport = { themeColor: "#090b10", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#ffffff", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

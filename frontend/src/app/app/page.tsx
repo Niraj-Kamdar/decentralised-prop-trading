@@ -38,7 +38,7 @@ export default function Dashboard() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <h1 className="text-[32px] leading-tight tracking-heading">Dashboard</h1>
           <p className="mt-1 text-sm text-muted">Your trades and liquidity at a glance.</p>
         </div>
         <div className="flex gap-2">
@@ -57,7 +57,7 @@ export default function Dashboard() {
       ) : (
         <>
           {claimable !== undefined && claimable > 0n && (
-            <div className="card flex flex-wrap items-center justify-between gap-4 border-up/40 p-4">
+            <div className="card flex flex-wrap items-center justify-between gap-4 border-up/30 bg-up/5 p-4">
               <div>
                 <div className="font-medium text-up">{usd(claimable)} trade payout waiting</div>
                 <div className="text-sm text-muted">A payout couldn't be sent automatically, so it is held for you to claim.</div>
@@ -114,7 +114,7 @@ export default function Dashboard() {
 
           <div className="card">
             <div className="flex items-center justify-between border-b border-line px-5 py-3">
-              <h2 className="font-semibold">Open positions</h2>
+              <h2 className="text-lg">Open positions</h2>
               <Link href="/app/trade" className="text-sm text-accent hover:underline">Manage →</Link>
             </div>
             {views.length === 0 ? (
@@ -124,7 +124,7 @@ export default function Dashboard() {
                 {views.map(({ p, a, v }) => (
                   <div key={p.id.toString()} className="grid grid-cols-2 items-center gap-3 px-5 py-3 text-sm md:grid-cols-5">
                     <div className="font-medium">
-                      {a?.symbol} <span className="pill ml-1 bg-accent/15 text-accent">{p.tier}x</span>
+                      {a?.symbol} <span className="pill ml-1 border border-accent/20 bg-accent/5 text-accent">{p.tier}x</span>
                     </div>
                     <div className="num">{usd(p.notional)}</div>
                     <div className="num text-muted">liq {price(v.liqPrice)}</div>
@@ -139,7 +139,7 @@ export default function Dashboard() {
       )}
 
       <div className="card p-5">
-        <h2 className="font-semibold">Protocol</h2>
+        <h2 className="text-lg">Protocol</h2>
         <div className="mt-3 grid gap-x-8 md:grid-cols-2">
           <div>
             <Row label="Vault size" value={proto ? usd(proto.vault.totalAssets) : "—"} />
