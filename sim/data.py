@@ -2,6 +2,7 @@
 
 import csv
 import io
+import os
 import urllib.request
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-DIR = Path(__file__).parent / "data"
+DIR = Path(os.environ.get("SIM_DATA", Path(__file__).parent / "data"))  # docker image: /data
 URL = "https://data.binance.vision/data/spot/monthly/klines/{s}/1m/{s}-1m-{y}-{m:02d}.zip"
 SYMBOLS = ("ETHUSDT", "BTCUSDT")  # asset index 0 = ETH, 1 = BTC
 NAMES = ("ETH", "BTC")

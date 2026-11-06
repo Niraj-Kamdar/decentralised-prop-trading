@@ -8,6 +8,7 @@ Fills are rebuilt into long positions per (user, coin): flat -> long opens, back
 
 import gzip
 import json
+import os
 import random
 import sys
 import time
@@ -16,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-CACHE = Path(__file__).parent / "data" / "hl"
+CACHE = Path(os.environ.get("SIM_DATA", Path(__file__).parent / "data")) / "hl"
 API = "https://api.hyperliquid.xyz/info"
 BOARD = "https://stats-data.hyperliquid.xyz/Mainnet/leaderboard"
 DAYS = 180
