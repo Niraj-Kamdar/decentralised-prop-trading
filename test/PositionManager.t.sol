@@ -5,6 +5,7 @@ import {BaseTest} from "./Base.t.sol";
 import {PositionManager} from "../src/PositionManager.sol";
 import {TraderProxy} from "../src/TraderProxy.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {MockRouter} from "./mocks/Mocks.sol";
 
 contract PositionManagerTest is BaseTest {
     // $100 margin x10 at BTC = $50k -> N = $1,000, B = $900, Q = 0.02 BTC, buffer = $20, V_liq = $920.
@@ -71,9 +72,9 @@ contract PositionManagerTest is BaseTest {
 
         _expectOpenRevert(100e6, 10, abi.encodeWithSelector(Pausable.EnforcedPause.selector));
 
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(trader);
-        pm.closePosition(posId, s, _noUpdate());
+        pm.closePosition(posId, s);
         assertEq(uint8(pm.getPosition(posId).status), uint8(PositionManager.PositionStatus.CLOSED));
     }
 
@@ -84,9 +85,9 @@ contract PositionManagerTest is BaseTest {
         _setPrice(address(cirBTC), 55_000); // V = 1100
 
         uint256 traderBefore = usdc.balanceOf(trader);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(trader);
-        pm.closePosition(posId, s, _noUpdate());
+        pm.closePosition(posId, s);
 
         // U3 = 1100 - 900 = 200, profit = 100 -> LP 12, treasury 3, trader 100 + 85.
         assertEq(usdc.balanceOf(trader) - traderBefore, 185e6);
@@ -108,9 +109,9 @@ contract PositionManagerTest is BaseTest {
         _setPrice(address(cirBTC), 55_000); // V = 1100, B = 800, U3 = 300, profit = 100
 
         uint256 traderBefore = usdc.balanceOf(trader);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(trader);
-        pm.closePosition(posId, s, _noUpdate());
+        pm.closePosition(posId, s);
 
         assertEq(usdc.balanceOf(trader) - traderBefore, 290e6); // 200 + 90
         assertEq(insurance.insurancePoolBalance() + insurance.opsTreasuryBalance(), 2e6);
@@ -123,9 +124,9 @@ contract PositionManagerTest is BaseTest {
         _setPrice(address(cirBTC), 47_500); // V = 950 -> U3 = 50
 
         uint256 traderBefore = usdc.balanceOf(trader);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(trader);
-        pm.closePosition(posId, s, _noUpdate());
+        pm.closePosition(posId, s);
 
         assertEq(usdc.balanceOf(trader) - traderBefore, 50e6);
         assertEq(vault.totalAssets(), LP_DEPOSIT);
@@ -134,37 +135,50 @@ contract PositionManagerTest is BaseTest {
 
     function test_close_onlyTraderOrOperator() public {
         uint256 posId = _open(100e6, 10, true);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(keeper);
         vm.expectRevert(PositionManager.NotAuthorized.selector);
-        pm.closePosition(posId, s, _noUpdate());
+        pm.closePosition(posId, s);
 
         vm.prank(trader);
         pm.setOperator(keeper, true);
         uint256 traderBefore = usdc.balanceOf(trader);
         vm.prank(keeper);
-        pm.closePosition(posId, s, _noUpdate());
+        pm.closePosition(posId, s);
         assertEq(usdc.balanceOf(trader) - traderBefore, 100e6); // payout always to trader
     }
 
     // ------------------------------------------------------------------ attack surfaces
 
-    function test_close_rejectsMinOutBelowOracleBound() public {
+    function test_close_enforcesTwapFloorEvenWithZeroMinOut() public {
         uint256 posId = _open(100e6, 10, true);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 300); // 3% < allowed 1%
+        // The pool now fills 3% below the TWAP: worse than the 1% exit allowance, so the close must revert even
+        // though the trader asked for no minimum at all.
+        router.setFeeBps(300);
+        uint256 floor = _exitSwap(posId, 100);
         vm.prank(trader);
-        vm.expectRevert();
-        pm.closePosition(posId, s, _noUpdate());
+        vm.expectPartialRevert(TraderProxy.SwapCallFailed.selector);
+        pm.closePosition(posId, 0);
+
+        // A trader-supplied minimum above the floor tightens it.
+        router.setFeeBps(0);
+        vm.prank(trader);
+        vm.expectPartialRevert(TraderProxy.SwapCallFailed.selector);
+        pm.closePosition(posId, floor * 2);
+
+        vm.prank(trader);
+        pm.closePosition(posId, 0);
+        assertEq(uint8(pm.getPosition(posId).status), uint8(PositionManager.PositionStatus.CLOSED));
     }
 
     function test_close_rejectsRedirectedRouterOutput() public {
         uint256 posId = _open(100e6, 10, true);
-        PositionManager.Position memory pos = pm.getPosition(posId);
-        // Calldata sends the USDC proceeds to the trader directly instead of the proxy.
-        PositionManager.SwapInstruction memory s = _swap(address(cirBTC), address(usdc), pos.spotAmount, 990e6, trader);
+        // A router that pays someone other than the proxy: the proxy's own balance check catches it.
+        router.setRedirect(trader);
+        uint256 floor = _exitSwap(posId, 100);
         vm.prank(trader);
-        vm.expectRevert(abi.encodeWithSelector(TraderProxy.InsufficientOutput.selector, 990e6, 0));
-        pm.closePosition(posId, s, _noUpdate());
+        vm.expectRevert(abi.encodeWithSelector(TraderProxy.InsufficientOutput.selector, floor, 0));
+        pm.closePosition(posId, 0);
     }
 
     function test_proxy_onlyManager() public {
@@ -191,16 +205,16 @@ contract PositionManagerTest is BaseTest {
         uint256 posId = _open(100e6, 10, true);
 
         _setPrice(address(cirBTC), 46_001); // V = 920.02 > 920
-        PositionManager.SwapInstruction memory s0 = _exitSwap(posId, 200);
+        uint256 s0 = _exitSwap(posId, 200);
         vm.prank(keeper);
         vm.expectRevert();
-        pm.liquidate(posId, s0, _noUpdate());
+        pm.liquidate(posId, s0);
 
         _setPrice(address(cirBTC), 46_000); // V = 920 == V_liq
         assertTrue(pm.isLiquidatable(posId));
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 200);
+        uint256 s = _exitSwap(posId, 200);
         vm.prank(keeper);
-        pm.liquidate(posId, s, _noUpdate());
+        pm.liquidate(posId, s);
 
         // 920 out: keeper 5, LP 900, penalty 15 -> insurance.
         assertEq(usdc.balanceOf(keeper), 5e6);
@@ -217,9 +231,9 @@ contract PositionManagerTest is BaseTest {
         insurance.donate(20e6);
 
         _setPrice(address(cirBTC), 42_500); // gap down: V = 850
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 200);
+        uint256 s = _exitSwap(posId, 200);
         vm.prank(keeper);
-        pm.liquidate(posId, s, _noUpdate());
+        pm.liquidate(posId, s);
 
         // 850 - 5 bounty = 845 < 900 -> shortfall 55; insurance covers 20; LPs eat 35.
         assertEq(usdc.balanceOf(keeper), 5e6);
@@ -233,15 +247,15 @@ contract PositionManagerTest is BaseTest {
     function test_processEpoch_rollsWithDebt() public {
         uint256 posId = _open(100e6, 10, true);
 
-        PositionManager.SwapInstruction memory early = _exitSwap(posId, 100);
+        uint256 early = _exitSwap(posId, 100);
         vm.expectRevert();
-        pm.processEpoch(posId, early, _noUpdate());
+        pm.processEpoch(posId, early);
 
         skip(7 days);
         _setPrice(address(cirBTC), 50_000);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(keeper);
-        pm.processEpoch(posId, s, _noUpdate());
+        pm.processEpoch(posId, s);
 
         PositionManager.Position memory pos = pm.getPosition(posId);
         // 900 * 8% * 7/365 = 1.380821.. -> rounded up
@@ -257,9 +271,9 @@ contract PositionManagerTest is BaseTest {
         _setPrice(address(cirBTC), 50_000);
 
         uint256 traderBefore = usdc.balanceOf(trader);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(keeper);
-        pm.processEpoch(posId, s, _noUpdate());
+        pm.processEpoch(posId, s);
 
         // 1000 - 5 bounty - 900 = 95 back to trader, no rollover debt.
         assertEq(usdc.balanceOf(keeper), 5e6);
@@ -274,9 +288,9 @@ contract PositionManagerTest is BaseTest {
 
         uint256 fee = pm.epochRolloverFee(900e6);
         uint256 traderBefore = usdc.balanceOf(trader);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(trader);
-        pm.closePosition(posId, s, _noUpdate());
+        pm.closePosition(posId, s);
 
         // U3 = 1100 - 900 - 3*fee; profit = U3 - 100; trader gets 100 + 85% of profit.
         uint256 profit = 200e6 - 3 * fee - 100e6;
@@ -288,9 +302,9 @@ contract PositionManagerTest is BaseTest {
         uint256 posId = _open(100e6, 10, true);
         skip(7 days);
         _setPrice(address(cirBTC), 50_000);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(trader);
-        pm.closePosition(posId, s, _noUpdate());
+        pm.closePosition(posId, s);
 
         uint256 fee = 1_380_822;
         uint256 lpPart = fee * 8_000 / 10_000;
@@ -307,16 +321,16 @@ contract PositionManagerTest is BaseTest {
         pm.setOrders(posId, 48_000e18, 0, 0);
 
         _setPrice(address(cirBTC), 48_500);
-        PositionManager.SwapInstruction memory s0 = _exitSwap(posId, 100);
+        uint256 s0 = _exitSwap(posId, 100);
         vm.prank(keeper);
         vm.expectRevert();
-        pm.executeTrigger(posId, s0, _noUpdate());
+        pm.executeTrigger(posId, s0);
 
         _setPrice(address(cirBTC), 47_000); // V = 940
         uint256 traderBefore = usdc.balanceOf(trader);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(keeper);
-        pm.executeTrigger(posId, s, _noUpdate());
+        pm.executeTrigger(posId, s);
 
         assertEq(usdc.balanceOf(keeper), 5e6);
         assertEq(usdc.balanceOf(trader) - traderBefore, 35e6); // 940 - 5 - 900
@@ -341,9 +355,9 @@ contract PositionManagerTest is BaseTest {
 
         skip(7 days);
         _setPrice(address(cirBTC), 50_000);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(keeper);
-        pm.processEpoch(posId, s, _noUpdate()); // must not revert
+        pm.processEpoch(posId, s); // must not revert
 
         assertEq(pm.claimableUSDC(trader), 95e6);
         assertEq(usdc.balanceOf(address(pm)), 95e6);
@@ -356,20 +370,14 @@ contract PositionManagerTest is BaseTest {
         assertEq(pm.totalClaimable(), 0);
     }
 
-    function test_oracle_staleBlocksLiquidation() public {
-        uint256 posId = _open(100e6, 10, true);
-        _setPrice(address(cirBTC), 40_000);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 200);
-        skip(6); // > 5s staleness
-        vm.prank(keeper);
-        vm.expectRevert();
-        pm.liquidate(posId, s, _noUpdate());
-
-        // A keeper-supplied Pyth update refreshes the price within the same call.
-        bytes[] memory upd = new bytes[](1);
-        upd[0] = abi.encode(BTC_ID, int64(40_000e8), uint64(4e8), int32(-8));
-        vm.prank(keeper);
-        pm.liquidate(posId, s, upd);
+    function test_swapRouter_onlyCurrentRouterWhitelisted() public {
+        address old = address(router);
+        MockRouter next = new MockRouter(address(usdc));
+        vm.prank(owner);
+        pm.setSwapRouter(address(next));
+        assertFalse(pm.isWhitelistedRouter(old));
+        assertTrue(pm.isWhitelistedRouter(address(next)));
+        assertEq(pm.swapRouter(), address(next));
     }
 
     // ------------------------------------------------------------------ fuzz: conservation
@@ -388,10 +396,10 @@ contract PositionManagerTest is BaseTest {
         uint256 out = router.quote(address(cirBTC), address(usdc), pm.getPosition(posId).spotAmount);
 
         bool liq = pm.isLiquidatable(posId);
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, liq ? 200 : 100);
+        uint256 s = _exitSwap(posId, liq ? 200 : 100);
         vm.prank(liq ? keeper : trader);
-        if (liq) pm.liquidate(posId, s, _noUpdate());
-        else pm.closePosition(posId, s, _noUpdate());
+        if (liq) pm.liquidate(posId, s);
+        else pm.closePosition(posId, s);
 
         skip(12 hours); // fully vest
         uint256 vaultDelta = vault.totalAssets() + 900e6 - vaultGrossBefore; // vault got back principal +/- yield/loss

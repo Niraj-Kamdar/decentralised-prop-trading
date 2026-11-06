@@ -9,15 +9,10 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {LPVault} from "../src/LPVault.sol";
 import {PositionManager} from "../src/PositionManager.sol";
 import {InsuranceReserve} from "../src/InsuranceReserve.sol";
-import {OracleVerifier} from "../src/OracleVerifier.sol";
-import {IPyth} from "../src/interfaces/IPyth.sol";
-import {ILPVault, IInsuranceReserve, IOracleVerifier} from "../src/interfaces/IProtocol.sol";
-import {MockUSDC, MockToken, MockMetaMorpho, MockPyth, MockRouter} from "./mocks/Mocks.sol";
+import {ILPVault, IInsuranceReserve, IOracle} from "../src/interfaces/IProtocol.sol";
+import {MockUSDC, MockToken, MockMetaMorpho, MockOracle, MockRouter} from "./mocks/Mocks.sol";
 
 abstract contract BaseTest is Test {
-    bytes32 internal constant BTC_ID = keccak256("BTC/USD");
-    bytes32 internal constant ETH_ID = keccak256("ETH/USD");
-
     address internal owner = makeAddr("owner");
     address internal lp = makeAddr("lp");
     address internal trader = makeAddr("trader");
@@ -27,12 +22,11 @@ abstract contract BaseTest is Test {
     MockToken internal cirBTC;
     MockToken internal weth;
     MockMetaMorpho internal morpho;
-    MockPyth internal pyth;
     MockRouter internal router;
 
     LPVault internal vault;
     InsuranceReserve internal insurance;
-    OracleVerifier internal oracle;
+    MockOracle internal oracle;
     PositionManager internal pm;
 
     uint256 internal constant LP_DEPOSIT = 100_000e6;
@@ -44,13 +38,10 @@ abstract contract BaseTest is Test {
         cirBTC = new MockToken("Circle BTC", "cirBTC", 8);
         weth = new MockToken("Wrapped Ether", "WETH", 18);
         morpho = new MockMetaMorpho(IERC20(address(usdc)));
-        pyth = new MockPyth();
         router = new MockRouter(address(usdc));
+        oracle = new MockOracle(address(usdc));
 
         vm.startPrank(owner);
-        oracle = new OracleVerifier(IPyth(address(pyth)), owner);
-        oracle.setFeed(address(cirBTC), BTC_ID, 5, 50);
-        oracle.setFeed(address(weth), ETH_ID, 5, 50);
 
         LPVault impl = new LPVault();
         vault = LPVault(
@@ -66,15 +57,14 @@ abstract contract BaseTest is Test {
             IERC20(address(usdc)),
             ILPVault(address(vault)),
             IInsuranceReserve(address(insurance)),
-            IOracleVerifier(address(oracle)),
+            IOracle(address(oracle)),
             owner
         );
         vault.setPositionManager(address(pm));
         insurance.setPositionManager(address(pm));
-        oracle.setConsumer(address(pm), true);
         pm.setAsset(address(cirBTC), true, 3_500, 2_000);
         pm.setAsset(address(weth), true, 3_500, 2_000);
-        pm.setRouter(address(router), true);
+        pm.setSwapRouter(address(router));
         vm.stopPrank();
 
         // Router inventory.
@@ -100,21 +90,8 @@ abstract contract BaseTest is Test {
     // ------------------------------------------------------------------ helpers
 
     function _setPrice(address token, uint256 usd) internal {
-        bytes32 id = token == address(cirBTC) ? BTC_ID : ETH_ID;
-        pyth.setPrice(id, int64(int256(usd * 1e8)), uint64(usd * 1e8 / 10_000), -8, block.timestamp); // 1bp conf
+        oracle.setPrice(token, usd * 1e18);
         router.setPrice(token, usd * 1e18);
-    }
-
-    function _swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, address recipient)
-        internal
-        view
-        returns (PositionManager.SwapInstruction memory)
-    {
-        return PositionManager.SwapInstruction({
-            router: address(router),
-            minAmountOut: minOut,
-            data: abi.encodeCall(MockRouter.swapExactIn, (tokenIn, tokenOut, amountIn, 0, recipient))
-        });
     }
 
     function _open(uint128 margin, uint8 tier, bool autoRollover) internal returns (uint256 posId) {
@@ -133,18 +110,11 @@ abstract contract BaseTest is Test {
     /// @dev Build open params up-front so `vm.expectRevert` can target `openPosition` itself.
     function _params(address token, uint128 margin, uint8 tier, bool autoRollover)
         internal
-        view
+        pure
         returns (PositionManager.OpenParams memory p)
     {
-        address proxy = pm.predictProxyAddress(pm.positionCount() + 1);
-        uint256 notional = uint256(margin) * tier;
         p = PositionManager.OpenParams({
-            spotToken: token,
-            tier: tier,
-            margin: margin,
-            autoRollover: autoRollover,
-            swap: _swap(address(usdc), token, notional, 0, proxy),
-            priceUpdateData: new bytes[](0)
+            spotToken: token, tier: tier, margin: margin, autoRollover: autoRollover, minAmountOut: 0
         });
     }
 
@@ -156,18 +126,8 @@ abstract contract BaseTest is Test {
         pm.openPosition(p);
     }
 
-    /// @dev Exit swap with minOut pinned exactly to the oracle bound for `slippageBps`.
-    function _exitSwap(uint256 posId, uint256 slippageBps)
-        internal
-        view
-        returns (PositionManager.SwapInstruction memory)
-    {
-        PositionManager.Position memory pos = pm.getPosition(posId);
-        uint256 bound = pm.markValue(posId) * (10_000 - slippageBps) / 10_000;
-        return _swap(pos.spotToken, address(usdc), pos.spotAmount, bound, pos.proxy);
-    }
-
-    function _noUpdate() internal pure returns (bytes[] memory) {
-        return new bytes[](0);
+    /// @dev Exit `minAmountOut` pinned exactly to the oracle bound for `slippageBps`.
+    function _exitSwap(uint256 posId, uint256 slippageBps) internal view returns (uint256) {
+        return pm.markValue(posId) * (10_000 - slippageBps) / 10_000;
     }
 }

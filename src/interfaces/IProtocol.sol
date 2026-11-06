@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.28;
 
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+
 interface ILPVault {
     function totalAssets() external view returns (uint256);
     function totalBorrowedPrincipal() external view returns (uint256);
@@ -14,11 +16,23 @@ interface IInsuranceReserve {
     function coverShortfall(uint256 deficit) external returns (uint256 covered);
 }
 
-interface IOracleVerifier {
+/// @notice Manipulation-resistant USD price source (Uniswap v4 TWAP); prices are USD per whole token, 1e18.
+interface IOracle {
     function getPrice(address asset) external view returns (uint256 price18);
     function valueInUsdc(address asset, uint256 amount) external view returns (uint256 usdcValue);
-    function getUpdateFee(bytes[] calldata updateData) external view returns (uint256 nativeFee);
-    function updatePrices(bytes[] calldata updateData) external;
+    /// @notice The v4 pool the asset is priced on, which is also the pool the protocol trades through.
+    function poolKey(address asset) external view returns (PoolKey memory);
+}
+
+interface IV4SwapRouter {
+    /// @notice Swap exactly `amountIn` (pulled from msg.sender via ERC-20 allowance) on a single v4 pool.
+    function swapExactIn(
+        PoolKey calldata key,
+        bool zeroForOne,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address recipient
+    ) external returns (uint256 amountOut);
 }
 
 interface ITraderProxy {

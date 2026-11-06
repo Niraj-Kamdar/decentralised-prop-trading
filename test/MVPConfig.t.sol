@@ -11,7 +11,7 @@ import {ConfigureMVP} from "../script/ConfigureMVP.s.sol";
 import {LPVault} from "../src/LPVault.sol";
 import {PositionManager} from "../src/PositionManager.sol";
 import {InsuranceReserve} from "../src/InsuranceReserve.sol";
-import {ILPVault, IInsuranceReserve, IOracleVerifier} from "../src/interfaces/IProtocol.sol";
+import {ILPVault, IInsuranceReserve, IOracle} from "../src/interfaces/IProtocol.sol";
 
 /// @notice The MVP launch: a $100 vault where traders open $5-$10 positions, configured by script/ConfigureMVP.
 contract MVPConfigTest is BaseTest {
@@ -35,15 +35,14 @@ contract MVPConfigTest is BaseTest {
             IERC20(address(usdc)),
             ILPVault(address(vault)),
             IInsuranceReserve(address(insurance)),
-            IOracleVerifier(address(oracle)),
+            IOracle(address(oracle)),
             owner
         );
         vault.setPositionManager(address(pm));
         insurance.setPositionManager(address(pm));
-        oracle.setConsumer(address(pm), true);
         pm.setAsset(address(cirBTC), true, 3_500, 2_000);
         pm.setAsset(address(weth), true, 3_500, 2_000);
-        pm.setRouter(address(router), true);
+        pm.setSwapRouter(address(router));
         pm.transferOwnership(SCRIPT_SENDER);
         vault.transferOwnership(SCRIPT_SENDER);
         vm.stopPrank();
@@ -95,8 +94,8 @@ contract MVPConfigTest is BaseTest {
         _setPrice(address(weth), 2_750);
         uint256 before = usdc.balanceOf(trader);
         vm.startPrank(trader);
-        pm.closePosition(a, _exitSwap(a, 100), _noUpdate());
-        pm.closePosition(b, _exitSwap(b, 100), _noUpdate());
+        pm.closePosition(a, _exitSwap(a, 100));
+        pm.closePosition(b, _exitSwap(b, 100));
         vm.stopPrank();
         // a: u = 27.5 - 20 = 7.5, profit 2.5, keep 90% -> 7.25. b: u = 55 - 45 = 10, profit 5, keep 85% -> 9.25.
         assertEq(usdc.balanceOf(trader) - before, 16.5e6);
@@ -123,9 +122,9 @@ contract MVPConfigTest is BaseTest {
         uint256 id = _open(5e6, 10, false); // N=50, B=45, V_liq = 46
         _setPrice(address(cirBTC), 45_900); // V = 45.9
         uint256 before = usdc.balanceOf(keeper);
-        PositionManager.SwapInstruction memory s = _exitSwap(id, 200);
+        uint256 s = _exitSwap(id, 200);
         vm.prank(keeper);
-        pm.liquidate(id, s, _noUpdate());
+        pm.liquidate(id, s);
         assertEq(usdc.balanceOf(keeper) - before, 0.1e6);
         assertEq(vault.totalBorrowedPrincipal(), 0);
     }
