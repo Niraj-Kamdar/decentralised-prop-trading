@@ -85,7 +85,7 @@ abstract contract BaseTest is Test {
 
     function _deployPM(IOracle o) internal returns (PositionManager) {
         PositionManager impl = new PositionManager();
-        return PositionManager(
+        PositionManager deployed = PositionManager(
             address(
                 new ERC1967Proxy(
                     address(impl),
@@ -102,6 +102,20 @@ abstract contract BaseTest is Test {
                 )
             )
         );
+        deployed.setLevel(
+            0,
+            PositionManager.LevelConfig({
+                enabled: true,
+                maxLeverage: 10,
+                maxMargin: type(uint128).max,
+                lpProfitBps: 1_200,
+                treasuryProfitBps: 300,
+                promoteMinTrades: 0,
+                promoteMinPnl: 0,
+                demoteMaxLoss: 0
+            })
+        );
+        return deployed;
     }
 
     function _setPrice(address token, uint256 usd) internal {

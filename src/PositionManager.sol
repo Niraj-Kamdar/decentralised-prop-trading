@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -22,7 +21,8 @@ import {
     IV4SwapRouter,
     ITraderProxy,
     IRouterRegistry,
-    IRiskView
+    IRiskView,
+    IDenylist
 } from "./interfaces/IProtocol.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
@@ -35,6 +35,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 contract PositionManager is
     IRouterRegistry,
     IRiskView,
+    IDenylist,
     Initializable,
     Ownable2StepUpgradeable,
     PausableUpgradeable,
@@ -42,7 +43,6 @@ contract PositionManager is
     UUPSUpgradeable
 {
     using SafeERC20 for IERC20;
-    using SafeCast for uint256;
 
     // ---------------------------------------------------------------------
     // Constants
@@ -95,8 +95,23 @@ contract PositionManager is
     struct TierConfig {
         bool enabled;
         uint16 maintenanceBps; // mu
+    }
+
+    struct LevelConfig {
+        bool enabled;
+        uint8 maxLeverage; // highest `tier` this level may open
+        uint128 maxMargin; // 6-dec USDC per position
         uint16 lpProfitBps;
         uint16 treasuryProfitBps;
+        uint32 promoteMinTrades; // closes since entering this level
+        uint128 promoteMinPnl; // realized pnl since entering this level, 6-dec
+        uint128 demoteMaxLoss; // demote when pnl <= -demoteMaxLoss; 0 = never
+    }
+
+    struct TraderStats {
+        uint8 level;
+        uint32 trades;
+        int128 pnl;
     }
 
     struct AssetConfig {
@@ -155,6 +170,10 @@ contract PositionManager is
     uint256 public maxExitSlippageBps;
     uint256 public maxLiqSlippageBps;
 
+    mapping(uint8 level => LevelConfig) public levels;
+    mapping(address trader => TraderStats) public traderStats;
+    mapping(address account => bool) public isDenied;
+
     // ---------------------------------------------------------------------
     // Events
     // ---------------------------------------------------------------------
@@ -185,6 +204,9 @@ contract PositionManager is
     event PayoutDeferred(address indexed trader, uint256 amount);
     event PayoutClaimed(address indexed trader, uint256 amount);
     event TierSet(uint8 indexed tier, TierConfig config);
+    event LevelChanged(address indexed trader, uint8 fromLevel, uint8 toLevel);
+    event LevelSet(uint8 indexed level, LevelConfig config);
+    event DeniedSet(address indexed account, bool denied);
     event AssetSet(address indexed token, AssetConfig config);
     event SwapRouterSet(address indexed router);
     event OracleSet(address oracle);
@@ -220,6 +242,8 @@ contract PositionManager is
     error InvalidAmount();
     error InvalidParams();
     error NothingToClaim();
+    error Denied(address account);
+    error LevelLimitExceeded(uint8 level);
 
     // ---------------------------------------------------------------------
     // Construction & Initialization
@@ -264,8 +288,8 @@ contract PositionManager is
         maxExitSlippageBps = 100;
         maxLiqSlippageBps = 200;
 
-        _setTier(5, TierConfig({enabled: true, maintenanceBps: 400, lpProfitBps: 800, treasuryProfitBps: 200}));
-        _setTier(10, TierConfig({enabled: true, maintenanceBps: 200, lpProfitBps: 1_200, treasuryProfitBps: 300}));
+        _setTier(5, TierConfig({enabled: true, maintenanceBps: 400}));
+        _setTier(10, TierConfig({enabled: true, maintenanceBps: 200}));
     }
 
     // ---------------------------------------------------------------------
@@ -273,14 +297,22 @@ contract PositionManager is
     // ---------------------------------------------------------------------
 
     modifier onlyOpen(uint256 posId) {
-        if (_positions[posId].status != PositionStatus.OPEN) revert PositionNotOpen(posId);
+        _requireOpen(posId);
         _;
     }
 
+    function _requireOpen(uint256 posId) internal view {
+        if (_positions[posId].status != PositionStatus.OPEN) revert PositionNotOpen(posId);
+    }
+
     modifier onlyTraderOrOperator(uint256 posId) {
+        _requireTraderOrOperator(posId);
+        _;
+    }
+
+    function _requireTraderOrOperator(uint256 posId) internal view {
         address trader = _positions[posId].trader;
         if (msg.sender != trader && !isOperator[trader][msg.sender]) revert NotAuthorized();
-        _;
     }
 
     // ---------------------------------------------------------------------
@@ -289,6 +321,11 @@ contract PositionManager is
 
     /// @notice TR-01: lock `margin` USDC, borrow `margin * (tier - 1)` from the LP vault and buy spot.
     function openPosition(OpenParams calldata p) external nonReentrant whenNotPaused returns (uint256 posId) {
+        if (isDenied[msg.sender]) revert Denied(msg.sender);
+        uint8 lvl = traderStats[msg.sender].level;
+        LevelConfig storage lv = levels[lvl];
+        if (!lv.enabled || p.tier > lv.maxLeverage || p.margin > lv.maxMargin) revert LevelLimitExceeded(lvl);
+
         TierConfig memory t = tiers[p.tier];
         if (!t.enabled) revert InvalidTier(p.tier);
         AssetConfig memory a = assetConfigs[p.spotToken];
@@ -301,7 +338,7 @@ contract PositionManager is
         uint256 borrowed = notional - margin;
 
         uint256 exposureAfter = assetExposure[p.spotToken] + notional;
-        uint256 cap = Math.mulDiv(lpVault.totalAssets(), a.maxExposureBps, BPS);
+        uint256 cap = (lpVault.totalAssets() * a.maxExposureBps) / BPS;
         if (exposureAfter > cap) revert ExposureCapExceeded(p.spotToken, exposureAfter, cap);
         assetExposure[p.spotToken] = exposureAfter;
         borrowedByAssetTier[p.spotToken][p.tier] += borrowed;
@@ -318,28 +355,23 @@ contract PositionManager is
         // TWAP sanity: a self-sandwiched entry would hand LP principal to the attacker's pool.
         uint256 entryMark = oracle.valueInUsdc(p.spotToken, spotAmount);
         if (entryMark * BPS < notional * (BPS - maxEntrySlippageBps)) revert EntryPriceDeviation(entryMark, notional);
-        uint256 threshold = borrowed + Math.mulDiv(notional, t.maintenanceBps, BPS);
+        uint256 threshold = borrowed + (notional * t.maintenanceBps) / BPS;
         if (entryMark <= threshold) revert UnhealthyAtOpen(entryMark, threshold);
 
-        uint64 epochEnd = (block.timestamp + EPOCH_DURATION).toUint64();
-        _positions[posId] = Position({
-            trader: msg.sender,
-            proxy: proxy,
-            spotToken: p.spotToken,
-            tier: p.tier,
-            autoRollover: p.autoRollover,
-            status: PositionStatus.OPEN,
-            notional: notional.toUint128(),
-            userMargin: margin.toUint128(),
-            borrowedPrincipal: borrowed.toUint128(),
-            accruedRolloverDebt: 0,
-            spotAmount: spotAmount,
-            openedAt: block.timestamp.toUint64(),
-            epochEndTime: epochEnd,
-            stopLossPrice: 0,
-            takeProfitPrice: 0,
-            trailingStopPrice: 0
-        });
+        uint64 epochEnd = uint64(block.timestamp + EPOCH_DURATION);
+        Position storage pos = _positions[posId];
+        pos.trader = msg.sender;
+        pos.proxy = proxy;
+        pos.spotToken = p.spotToken;
+        pos.tier = p.tier;
+        pos.autoRollover = p.autoRollover;
+        pos.status = PositionStatus.OPEN;
+        pos.notional = uint128(notional);
+        pos.userMargin = uint128(margin);
+        pos.borrowedPrincipal = uint128(borrowed);
+        pos.spotAmount = spotAmount;
+        pos.openedAt = uint64(block.timestamp);
+        pos.epochEndTime = epochEnd;
 
         emit PositionOpened(posId, msg.sender, p.spotToken, proxy, p.tier, margin, borrowed, spotAmount, epochEnd);
     }
@@ -372,12 +404,11 @@ contract PositionManager is
         if (amount == 0 || amount > pos.borrowedPrincipal) revert InvalidAmount();
         usdc.safeTransferFrom(msg.sender, address(this), amount);
 
-        pos.borrowedPrincipal -= amount.toUint128();
-        pos.userMargin += amount.toUint128();
+        pos.borrowedPrincipal -= uint128(amount);
+        pos.userMargin += uint128(amount);
         borrowedByAssetTier[pos.spotToken][pos.tier] -= amount;
 
-        usdc.forceApprove(address(lpVault), amount);
-        lpVault.repayFromPosition(amount, amount, 0);
+        _repayVault(amount, amount, 0);
         emit MarginAdded(posId, amount, pos.borrowedPrincipal);
     }
 
@@ -431,11 +462,9 @@ contract PositionManager is
 
         if (pos.autoRollover && !liquidatable) return; // rolled; no bounty for a pure roll
 
-        if (liquidatable) {
-            _exitAndSettle(posId, pos, minAmountOut, mark, maxLiqSlippageBps, CloseReason.LIQUIDATION, true);
-        } else {
-            _exitAndSettle(posId, pos, minAmountOut, mark, maxExitSlippageBps, CloseReason.EXPIRY, true);
-        }
+        uint256 slip = liquidatable ? maxLiqSlippageBps : maxExitSlippageBps;
+        CloseReason reason = liquidatable ? CloseReason.LIQUIDATION : CloseReason.EXPIRY;
+        _exitAndSettle(posId, pos, minAmountOut, mark, slip, reason, true);
     }
 
     /// @notice KP-01: permissionless liquidation once V(t) <= B + D_roll + N * mu.
@@ -462,11 +491,10 @@ contract PositionManager is
 
         _catchUpEpochs(posId, pos);
         uint256 mark = oracle.valueInUsdc(pos.spotToken, pos.spotAmount);
-        if (mark <= _liquidationThreshold(pos)) {
-            _exitAndSettle(posId, pos, minAmountOut, mark, maxLiqSlippageBps, CloseReason.LIQUIDATION, true);
-        } else {
-            _exitAndSettle(posId, pos, minAmountOut, mark, maxExitSlippageBps, CloseReason.TRIGGER, true);
-        }
+        bool liq = mark <= _liquidationThreshold(pos);
+        uint256 slip = liq ? maxLiqSlippageBps : maxExitSlippageBps;
+        CloseReason reason = liq ? CloseReason.LIQUIDATION : CloseReason.TRIGGER;
+        _exitAndSettle(posId, pos, minAmountOut, mark, slip, reason, true);
     }
 
     // ---------------------------------------------------------------------
@@ -481,7 +509,7 @@ contract PositionManager is
     function liquidationThreshold(uint256 posId) external view returns (uint256) {
         Position memory pos = _positions[posId];
         (uint256 extraDebt,) = _pendingEpochs(pos);
-        pos.accruedRolloverDebt += extraDebt.toUint128();
+        pos.accruedRolloverDebt += uint128(extraDebt);
         return _liquidationThreshold(pos);
     }
 
@@ -494,7 +522,7 @@ contract PositionManager is
         Position memory pos = _positions[posId];
         if (pos.status != PositionStatus.OPEN) return false;
         (uint256 extraDebt,) = _pendingEpochs(pos);
-        pos.accruedRolloverDebt += extraDebt.toUint128();
+        pos.accruedRolloverDebt += uint128(extraDebt);
         return oracle.valueInUsdc(pos.spotToken, pos.spotAmount) <= _liquidationThreshold(pos);
     }
 
@@ -573,6 +601,27 @@ contract PositionManager is
         _setTier(tier, cfg);
     }
 
+    function setLevel(uint8 level, LevelConfig calldata cfg) external onlyOwner {
+        if (uint256(cfg.lpProfitBps) + cfg.treasuryProfitBps > BPS || (cfg.enabled && cfg.maxLeverage < 2)) {
+            revert InvalidParams();
+        }
+        levels[level] = cfg;
+        emit LevelSet(level, cfg);
+    }
+
+    function setTraderLevel(address trader, uint8 level) external onlyOwner {
+        if (trader == address(0)) revert ZeroAddress();
+        uint8 from = traderStats[trader].level;
+        traderStats[trader] = TraderStats({level: level, trades: 0, pnl: 0});
+        emit LevelChanged(trader, from, level);
+    }
+
+    function setDenied(address account, bool denied) external onlyOwner {
+        if (account == address(0)) revert ZeroAddress();
+        isDenied[account] = denied;
+        emit DeniedSet(account, denied);
+    }
+
     function setRiskParams(
         uint256 rolloverAprBps_,
         uint256 lpRolloverShareBps_,
@@ -633,7 +682,6 @@ contract PositionManager is
 
     function _setTier(uint8 tier, TierConfig memory cfg) internal {
         if (tier < 2 || cfg.maintenanceBps == 0 || cfg.maintenanceBps >= BPS / tier) revert InvalidTier(tier);
-        if (uint256(cfg.lpProfitBps) + cfg.treasuryProfitBps > BPS) revert InvalidParams();
         tiers[tier] = cfg;
         if (!_tierListed[tier]) {
             _tierListed[tier] = true;
@@ -644,7 +692,7 @@ contract PositionManager is
 
     function _liquidationThreshold(Position memory pos) internal view returns (uint256) {
         return uint256(pos.borrowedPrincipal) + pos.accruedRolloverDebt
-            + Math.mulDiv(pos.notional, tiers[pos.tier].maintenanceBps, BPS);
+            + (uint256(pos.notional) * tiers[pos.tier].maintenanceBps) / BPS;
     }
 
     /// @dev Debt and epoch count due for an auto-rolling position whose epoch(s) have elapsed.
@@ -659,8 +707,8 @@ contract PositionManager is
     function _catchUpEpochs(uint256 posId, Position storage pos) internal {
         (uint256 debt, uint256 epochs) = _pendingEpochs(pos);
         if (epochs == 0) return;
-        pos.accruedRolloverDebt += debt.toUint128();
-        pos.epochEndTime += (epochs * EPOCH_DURATION).toUint64();
+        pos.accruedRolloverDebt += uint128(debt);
+        pos.epochEndTime += uint64(epochs * EPOCH_DURATION);
         emit EpochRolled(posId, epochs, pos.accruedRolloverDebt, pos.epochEndTime);
     }
 
@@ -687,7 +735,8 @@ contract PositionManager is
         CloseReason reason,
         bool forced
     ) internal {
-        uint256 minOut = Math.max(minAmountOut, Math.mulDiv(mark, BPS - slippageBps, BPS));
+        uint256 floorOut = (mark * (BPS - slippageBps)) / BPS;
+        uint256 minOut = minAmountOut > floorOut ? minAmountOut : floorOut;
 
         bool isLiquidation = reason == CloseReason.LIQUIDATION;
         pos.status = isLiquidation ? PositionStatus.LIQUIDATED : PositionStatus.CLOSED;
@@ -700,6 +749,8 @@ contract PositionManager is
         ITraderProxy(proxy).sweep(address(usdc), address(this), usdcOut);
 
         (uint256 traderPayout, uint256 penalty) = _settle(posId, pos, usdcOut, forced, isLiquidation);
+
+        _recordResult(pos.trader, int256(traderPayout) - int256(uint256(pos.userMargin)));
 
         if (isLiquidation) {
             emit PositionLiquidated(posId, msg.sender, usdcOut, mark, penalty);
@@ -738,7 +789,7 @@ contract PositionManager is
         // Step 3: rollover debt, 80% LP / 20% insurance.
         uint256 rolloverPaid = Math.min(uint256(pos.accruedRolloverDebt), u);
         u -= rolloverPaid;
-        uint256 lpYield = Math.mulDiv(rolloverPaid, lpRolloverShareBps, BPS);
+        uint256 lpYield = (rolloverPaid * lpRolloverShareBps) / BPS;
         uint256 toInsurance = rolloverPaid - lpYield;
         uint256 treasuryCut;
 
@@ -752,9 +803,9 @@ contract PositionManager is
                 traderPayout = u;
             } else {
                 uint256 profit = u - margin;
-                TierConfig memory t = tiers[pos.tier];
-                uint256 lpCut = Math.mulDiv(profit, t.lpProfitBps, BPS);
-                treasuryCut = Math.mulDiv(profit, t.treasuryProfitBps, BPS);
+                LevelConfig storage l = levels[traderStats[pos.trader].level];
+                uint256 lpCut = (profit * l.lpProfitBps) / BPS;
+                treasuryCut = (profit * l.treasuryProfitBps) / BPS;
                 lpYield += lpCut;
                 traderPayout = u - lpCut - treasuryCut;
             }
@@ -766,6 +817,29 @@ contract PositionManager is
             insurance.fund(toInsurance, treasuryCut);
         }
         if (traderPayout > 0) _disburseToTrader(pos.trader, traderPayout);
+    }
+
+    function _recordResult(address trader, int256 pnl) internal {
+        TraderStats storage s = traderStats[trader];
+        s.trades += 1;
+        s.pnl += int128(pnl);
+        LevelConfig storage l = levels[s.level];
+        uint8 from = s.level;
+        uint8 to = from;
+        if (from > 0 && l.demoteMaxLoss > 0 && s.pnl <= -int256(uint256(l.demoteMaxLoss))) {
+            to = from - 1;
+        } else if (
+            from < type(uint8).max && levels[from + 1].enabled && s.trades >= l.promoteMinTrades
+                && s.pnl >= int256(uint256(l.promoteMinPnl))
+        ) {
+            to = from + 1;
+        }
+        if (to != from) {
+            s.level = to;
+            s.trades = 0;
+            s.pnl = 0;
+            emit LevelChanged(trader, from, to);
+        }
     }
 
     function _repayVault(uint256 principalReturned, uint256 principalBorrowed, uint256 yieldEarned) internal {

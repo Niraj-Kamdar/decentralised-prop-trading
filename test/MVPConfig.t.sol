@@ -91,11 +91,11 @@ contract MVPConfigTest is BaseTest {
         pm.closePosition(a, _exitSwap(a, 100));
         pm.closePosition(b, _exitSwap(b, 100));
         vm.stopPrank();
-        // a: u = 27.5 - 20 = 7.5, profit 2.5, keep 90% -> 7.25. b: u = 55 - 45 = 10, profit 5, keep 85% -> 9.25.
-        assertEq(usdc.balanceOf(trader) - before, 16.5e6);
-        // LP cut: 8% of 2.5 + 12% of 5 = 0.8, released over the 12h profit-vesting window.
+        // a: profit 2.5, keep 85% -> 7.125. b: profit 5, keep 85% -> 9.25. Total = 16.375.
+        assertEq(usdc.balanceOf(trader) - before, 16.375e6);
+        // LP cut: 12% of 2.5 + 12% of 5 = 0.9, released over the 12h profit-vesting window.
         vm.warp(block.timestamp + 12 hours);
-        assertEq(vault.totalAssets(), 100.8e6);
+        assertEq(vault.totalAssets(), 100.9e6);
     }
 
     function test_mvp_tenDollarsAtFiveX() public {
