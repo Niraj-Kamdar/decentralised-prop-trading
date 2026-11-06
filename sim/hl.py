@@ -188,3 +188,18 @@ def replay_job(spec):
     d = tr["st"] >= 2
     return s.summary() | dict(win=float((tr["roi"][d] > 0).mean()), liq_rate=float((tr["st"][d] == 3).mean()),
                               trades=int(s.L["n_open"]), rejected=int(s.L["rej_entry"] + s.L["rej_cap"]))
+
+
+def dataset(accts):
+    """The rebuilt ETH/BTC long positions as compact columns: the frozen sample published to Arkiv."""
+    t = table(accts)
+    m = np.isin(t["coin"], ["ETH", "BTC"])
+    users = sorted(set(t["user"][m]))
+    ix = {u: i for i, u in enumerate(users)}
+    return dict(
+        users=users,
+        user=[ix[u] for u in t["user"][m]], btc=(t["coin"][m] == "BTC").astype(int).tolist(),
+        t_open=t["t_open"][m].astype(int).tolist(), hold_h=t["hold_h"][m].round(4).tolist(),
+        cost=t["cost"][m].round(2).tolist(), pnl=t["pnl"][m].round(2).tolist(), fees=t["fees"][m].round(2).tolist(),
+        liq=t["liq"][m].astype(int).tolist(), closed=t["closed"][m].astype(int).tolist(),
+        open_long_leverage=[x[1] for x in leverage(accts) if x[0] in ("ETH", "BTC") and x[4]])

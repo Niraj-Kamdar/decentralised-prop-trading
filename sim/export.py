@@ -1,8 +1,9 @@
-"""Every number the app, landing page and Arkiv need, in one results.json.
+"""Every number the app, landing page and Arkiv need, in one results.json (+ positions.json.gz: the trader sample).
 
   uv run --with numpy python sim/export.py [out.json]        # ~5 min on 8 cores, needs the cached data
 """
 
+import gzip
 import json
 import os
 import subprocess
@@ -143,7 +144,11 @@ def main(out):
     )
     with open(out, "w") as f:
         json.dump(res, f, default=float, separators=(",", ":"))
-    print(f"wrote {out}: {os.path.getsize(out) / 1024:.0f} KiB", file=sys.stderr)
+    pos = os.path.join(os.path.dirname(out) or ".", "positions.json.gz")
+    with open(pos, "wb") as f:
+        f.write(gzip.compress(json.dumps(hl.dataset(accts), separators=(",", ":")).encode(), mtime=0))
+    for p in (out, pos):
+        print(f"wrote {p}: {os.path.getsize(p) / 1024:.0f} KiB", file=sys.stderr)
 
 
 if __name__ == "__main__":
