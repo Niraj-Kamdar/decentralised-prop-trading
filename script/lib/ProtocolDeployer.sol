@@ -84,6 +84,19 @@ library ProtocolDeployer {
         // Spot long on ETH and BTC only.
         d.pm.setAsset(ArcMainnet.WETH, true, 3_500, 2_000);
         d.pm.setAsset(ArcMainnet.CIRBTC, true, 3_500, 2_000);
+        d.pm.setLevel(
+            0,
+            PositionManager.LevelConfig({
+                enabled: true,
+                maxLeverage: 10,
+                maxMargin: type(uint128).max,
+                lpProfitBps: 1200,
+                treasuryProfitBps: 300,
+                promoteMinTrades: 0,
+                promoteMinPnl: 0,
+                demoteMaxLoss: 0
+            })
+        );
     }
 
     /// @notice Start the Ownable2Step hand-off of every contract to `governance` (which must accept).
