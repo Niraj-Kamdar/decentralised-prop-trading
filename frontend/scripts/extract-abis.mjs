@@ -7,7 +7,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const outDir = join(root, "frontend", "src", "abi");
 mkdirSync(outDir, { recursive: true });
 
-const contracts = ["PositionManager", "LPVault", "OracleVerifier", "InsuranceReserve", "TraderProxy"];
+const contracts = ["PositionManager", "LPVault", "UniV4TwapOracle", "InsuranceReserve", "TraderProxy", "V4SwapRouter"];
 for (const name of contracts) {
   const artifact = JSON.parse(readFileSync(join(root, "out", `${name}.sol`, `${name}.json`), "utf8"));
   const exportName = name[0].toLowerCase() + name.slice(1) + "Abi";

@@ -1,7 +1,7 @@
 "use client";
 
 import { borrowCapacity, useProtocol } from "@/hooks/useProtocol";
-import { NETWORK, PROTOCOL_CONFIGURED } from "@/lib/config";
+import { NETWORK_LABEL, PROTOCOL_CONFIGURED } from "@/lib/config";
 import { pct, usd } from "@/lib/format";
 
 export function LiveStats() {
@@ -19,7 +19,7 @@ export function LiveStats() {
       <div className="flex items-center justify-between border-b border-line px-5 py-3 text-sm">
         <span className="flex items-center gap-2 font-medium">
           <span className={`h-2 w-2 rounded-full ${data ? "animate-pulse bg-up" : "bg-muted"}`} />
-          Live on Arc {NETWORK === "testnet" ? "testnet" : "mainnet"}
+          Live on {NETWORK_LABEL}
         </span>
         <span className="text-xs text-muted">
           {!PROTOCOL_CONFIGURED ? "Contracts not configured" : isLoading ? "Loading…" : isError ? "RPC unavailable" : "Read directly from the contracts"}
