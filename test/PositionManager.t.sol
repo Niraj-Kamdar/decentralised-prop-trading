@@ -113,10 +113,10 @@ contract PositionManagerTest is BaseTest {
         vm.prank(trader);
         pm.closePosition(posId, s);
 
-        assertEq(usdc.balanceOf(trader) - traderBefore, 290e6); // 200 + 90
-        assertEq(insurance.insurancePoolBalance() + insurance.opsTreasuryBalance(), 2e6);
+        assertEq(usdc.balanceOf(trader) - traderBefore, 285e6); // 200 + 85
+        assertEq(insurance.insurancePoolBalance() + insurance.opsTreasuryBalance(), 3e6);
         skip(12 hours);
-        assertEq(vault.totalAssets(), LP_DEPOSIT + 8e6);
+        assertEq(vault.totalAssets(), LP_DEPOSIT + 12e6);
     }
 
     function test_close_atLoss() public {

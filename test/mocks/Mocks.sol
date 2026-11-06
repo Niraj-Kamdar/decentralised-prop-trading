@@ -10,6 +10,8 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
+import {AggregatorV3Interface} from "../../src/ChainlinkOracle.sol";
+
 /// @notice 6-decimal USDC stand-in with a Circle-style blocklist (reverts on send/receive).
 contract MockUSDC is ERC20 {
     mapping(address => bool) public blocklisted;
@@ -144,5 +146,41 @@ contract MockRouter is IV4SwapRouter {
         out = quote(tokenIn, tokenOut, amountIn);
         require(out >= minAmountOut, "router: slippage");
         IERC20(tokenOut).transfer(redirectTo == address(0) ? recipient : redirectTo, out);
+    }
+}
+
+contract MockAggregator is AggregatorV3Interface {
+    uint8 private immutable _decimals;
+    string private _description;
+    int256 private _answer;
+    uint256 private _updatedAt;
+
+    constructor(uint8 decimals_) {
+        _decimals = decimals_;
+    }
+
+    function decimals() external view returns (uint8) {
+        return _decimals;
+    }
+
+    function description() external view returns (string memory) {
+        return _description;
+    }
+
+    function setDescription(string memory desc) external {
+        _description = desc;
+    }
+
+    function setAnswer(int256 answer, uint256 updatedAt) external {
+        _answer = answer;
+        _updatedAt = updatedAt;
+    }
+
+    function latestRoundData()
+        external
+        view
+        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
+    {
+        return (1, _answer, _updatedAt, _updatedAt, 1);
     }
 }

@@ -1,15 +1,11 @@
 /**
- * Keeper for the protocol. It does two jobs:
- *
- *  1. Records the Uniswap v4 TWAP. The oracle only accepts observations from whitelisted recorders, and without
- *     fresh observations every price read reverts (TwapStale), so nothing can open, close or be liquidated.
- *  2. Liquidates underwater positions, closes expired epochs, executes take-profit / stop-loss orders and pays
- *     out matured LP withdrawals.
+ * Keeper for the protocol:
+ * Liquidates underwater positions, closes expired epochs, executes take-profit / stop-loss orders and pays
+ * out matured LP withdrawals.
  *
  *   KEEPER_PRIVATE_KEY=0x... npm run keeper
  *
- * Reads the same NEXT_PUBLIC_* configuration as the app (.env.local / .env). The keeper wallet must be a
- * recorder on the oracle (UniV4TwapOracle.setRecorder) and needs a little USDC for gas. It earns the keeper
+ * Reads the same NEXT_PUBLIC_* configuration as the app (.env.local / .env). It earns the keeper
  * bounty on liquidations, expiries and triggers.
  */
 import { readFileSync } from "node:fs";
@@ -28,13 +24,11 @@ for (const f of [".env.local", ".env"]) {
 }
 
 const INTERVAL_MS = Number(process.env.KEEPER_INTERVAL_MS || 5000);
-/** How often to record a TWAP observation. Must stay well under the oracle's maxStaleness (90s by default). */
-const RECORD_INTERVAL_MS = Number(process.env.KEEPER_RECORD_INTERVAL_MS || 10_000);
 
 async function main() {
   const { createPublicClient, createWalletClient, http, formatUnits } = await import("viem");
   const { privateKeyToAccount } = await import("viem/accounts");
-  const { pmAbi, vaultAbi, oracleAbi } = await import("../src/abi");
+  const { pmAbi, vaultAbi } = await import("../src/abi");
   const { arc, ASSETS, CONTRACTS, RPC_URL, assetByAddress, PROTOCOL_CONFIGURED } = await import("../src/lib/config");
   const { readOraclePrices, priceOf } = await import("../src/lib/oracle");
   const { valueInUsdc } = await import("../src/lib/trade");
@@ -47,36 +41,11 @@ async function main() {
   const pc = createPublicClient({ chain: arc, transport: http(RPC_URL) });
   const wc = createWalletClient({ chain: arc, transport: http(RPC_URL), account });
   const pm = { address: CONTRACTS.positionManager, abi: pmAbi } as const;
-  const oracle = { address: CONTRACTS.oracle, abi: oracleAbi } as const;
   const log = (...a: unknown[]) => console.log(new Date().toISOString(), ...a);
   const short = (e: unknown) => (e instanceof Error ? e.message.split("\n")[0] : String(e));
   log(`keeper ${account.address} on ${arc.name} (${arc.id}) via ${RPC_URL}`);
 
-  const isRecorder = await pc.readContract({ ...oracle, functionName: "isRecorder", args: [account.address] });
-  if (!isRecorder) log("WARNING: this wallet is not a TWAP recorder; the oracle will go stale. Ask the owner to call setRecorder.");
-
-  // ------------------------------------------------------------------ 1. TWAP recording
-  let lastRecord = 0;
-  async function record() {
-    if (!isRecorder || Date.now() - lastRecord < RECORD_INTERVAL_MS) return;
-    lastRecord = Date.now();
-    const assets = ASSETS.map((a) => a.address);
-    // Ticks as of the latest mined block. The oracle rejects a sample whose live tick has moved further than
-    // maxRecordDeviation from these, so sandwiching this transaction cannot drag the TWAP.
-    const ticks = await pc.multicall({
-      contracts: assets.map((a) => ({ ...oracle, functionName: "spotTick", args: [a] }) as const),
-      allowFailure: false,
-    });
-    try {
-      const hash = await wc.writeContract({ ...oracle, functionName: "record", args: [assets, ticks], account, chain: arc });
-      const r = await pc.waitForTransactionReceipt({ hash });
-      if (r.status !== "success") log(`record reverted: ${hash}`);
-    } catch (e) {
-      log("record failed:", short(e));
-    }
-  }
-
-  // ------------------------------------------------------------------ 2. Positions and LP queue
+  // ------------------------------------------------------------------ Positions and LP queue
   const open = new Set<bigint>();
   let scanned = 0n;
   let lastQueueCheck = 0;
@@ -164,7 +133,7 @@ async function main() {
   }
 
   for (;;) {
-    for (const job of [record, positions, lpQueue]) {
+    for (const job of [positions, lpQueue]) {
       try {
         await job();
       } catch (e) {

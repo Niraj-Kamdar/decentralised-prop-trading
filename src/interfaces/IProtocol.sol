@@ -3,6 +3,10 @@ pragma solidity ^0.8.28;
 
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
+interface IDenylist {
+    function isDenied(address account) external view returns (bool);
+}
+
 interface ILPVault {
     function totalAssets() external view returns (uint256);
     function totalBorrowedPrincipal() external view returns (uint256);

@@ -14,7 +14,7 @@ import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/
 import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {ArcConstants} from "./libraries/ArcConstants.sol";
-import {IRiskView} from "./interfaces/IProtocol.sol";
+import {IRiskView, IDenylist} from "./interfaces/IProtocol.sol";
 import {IERC7540Operator, IERC7540Redeem} from "./interfaces/IERC7540.sol";
 
 /// @title LPVault (spUSDC)
@@ -128,6 +128,9 @@ contract LPVault is
     uint256 public nextTicketId;
     mapping(uint256 ticketId => BonusTicket) internal _tickets;
 
+    uint256 public depositCap;
+    uint256 public perAddressCap;
+
     // ---------------------------------------------------------------------
     // Events & errors
     // ---------------------------------------------------------------------
@@ -162,6 +165,7 @@ contract LPVault is
     event BonusParamsUpdated(
         uint256 bonusDuration, uint256 bonusEmissionPeriod, uint256 maxBonusAprBps, uint256 minBonusDeposit
     );
+    event DepositCapsSet(uint256 total, uint256 perAddress);
 
     error OnlyPositionManager();
     error ZeroAddress();
@@ -181,6 +185,7 @@ contract LPVault is
     error TicketNotMatured(uint64 maturesAt);
     error TicketMatured(uint64 maturesAt);
     error AllocationBlockedByQueue(uint256 requested, uint256 available);
+    error Denied(address account);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -220,6 +225,8 @@ contract LPVault is
         maxBonusAprBps = 2_000;
         minBonusDeposit = 1_000e6;
         lastBonusUpdate = block.timestamp;
+        depositCap = type(uint256).max;
+        perAddressCap = type(uint256).max;
     }
 
     modifier onlyPositionManager() {
@@ -277,11 +284,36 @@ contract LPVault is
     }
 
     function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
+        _checkNotDenied(msg.sender);
+        _checkNotDenied(receiver);
         return super.deposit(assets, receiver);
     }
 
     function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
+        _checkNotDenied(msg.sender);
+        _checkNotDenied(receiver);
         return super.mint(shares, receiver);
+    }
+
+    function maxDeposit(address receiver) public view override returns (uint256) {
+        uint256 total = totalAssets();
+        uint256 capTotal = depositCap;
+        uint256 capAddr = perAddressCap;
+        uint256 basis = costBasis[receiver];
+
+        uint256 remainTotal = total < capTotal ? capTotal - total : 0;
+        uint256 remainAddr = basis < capAddr ? capAddr - basis : 0;
+
+        return Math.min(remainTotal, remainAddr);
+    }
+
+    function maxMint(address receiver) public view override returns (uint256) {
+        return convertToShares(maxDeposit(receiver));
+    }
+
+    function _checkNotDenied(address account) internal view {
+        address pm = positionManager;
+        if (pm != address(0) && IDenylist(pm).isDenied(account)) revert Denied(account);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
@@ -504,6 +536,10 @@ contract LPVault is
     /// @notice While stressed, deposit and lock the shares for `bonusDuration` to earn a share of the bonus pot.
     function depositWithBonus(uint256 assets, address receiver) external nonReentrant returns (uint256 ticketId) {
         if (receiver == address(0)) revert ZeroAddress();
+        _checkNotDenied(msg.sender);
+        _checkNotDenied(receiver);
+        uint256 maxDep = maxDeposit(receiver);
+        if (assets > maxDep) revert ERC4626ExceededMaxDeposit(receiver, assets, maxDep);
         if (!isStressed()) revert NotStressed();
         if (assets < minBonusDeposit) revert BelowMinBonusDeposit(assets, minBonusDeposit);
         _accrueBonus();
@@ -630,6 +666,12 @@ contract LPVault is
     // ---------------------------------------------------------------------
     // Governance
     // ---------------------------------------------------------------------
+
+    function setDepositCaps(uint256 total, uint256 perAddress) external onlyOwner {
+        depositCap = total;
+        perAddressCap = perAddress;
+        emit DepositCapsSet(total, perAddress);
+    }
 
     function setPositionManager(address pm) external onlyOwner {
         if (pm == address(0)) revert ZeroAddress();
