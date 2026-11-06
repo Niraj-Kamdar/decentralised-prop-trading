@@ -1,232 +1,213 @@
 import Link from "next/link";
 import { Calculator } from "@/components/landing/Calculator";
-import { LiveStats } from "@/components/landing/LiveStats";
 import { WaitlistForm } from "@/components/landing/WaitlistForm";
 import { Logo } from "@/components/Logo";
 import { APP_NAME } from "@/lib/config";
 
-const TRADER_STEPS = [
-  { t: "Put in a little USDC", d: "Start with as little as $5. That's your margin, and the most you can ever lose." },
-  { t: "Get 5x or 10x buying power", d: "LPs lend you the rest, so $10 buys $50 or $100 of real BTC or ETH on Uniswap." },
-  { t: "Keep up to 90% of the profit", d: "Close whenever you like. You get your $10 back plus 85–90% of the gains. The first week is free." },
+const STEPS = [
+  { n: "1", t: "Investors fund the vault", d: "Anyone can deposit USDC. That pool is what traders borrow from." },
+  { n: "2", t: "Traders borrow up to 10x", d: "Put in $10, trade with up to $100. Your deposit covers the first losses." },
+  { n: "3", t: "Close and get paid", d: "The contract splits the profit on the spot. Most of it goes to the trader." },
 ];
 
-const LP_STEPS = [
-  { t: "Deposit USDC", d: "Your USDC joins the vault that funds traders. You receive spUSDC, which tracks your share." },
-  { t: "Earn from three sources", d: "8–12% of every winning trade, weekly fees on borrowed money, and lending yield on idle cash." },
-  { t: "Protected first", d: "Losing trades close automatically before they eat into your money. Traders take losses first, then the insurance pool." },
-];
+const TRADER_POINTS = ["Trade with 5x or 10x your deposit", "Keep up to 90% of the profit", "Paid out the moment you close", "First week of borrowing is free"];
 
-const SAFETY = [
-  { t: "Losses capped at margin", d: "A trade is closed automatically before it can lose more than the trader put in." },
-  { t: "One wallet per trade", d: "Every position lives in its own isolated contract. It can only swap through approved Uniswap routers." },
-  { t: "Oracle-checked prices", d: "Pyth prices guard every entry and exit, so nobody can profit by manipulating a pool." },
-  { t: "Insurance pool", d: "Liquidation penalties and part of every fee build a reserve that absorbs bad debt before LPs." },
-  { t: "Orderly LP exits", d: "Withdrawals go through a 30-day queue, so a rush to the exit can't break open trades." },
-  { t: "Non-custodial", d: "All logic runs in smart contracts on Arc, where gas is paid in USDC. No company holds your money." },
+const INVESTOR_POINTS = [
+  "Earn 8–12% of every winning trade",
+  "Traders' deposits take losses first",
+  "Withdraw any time, paid out within 30 days",
 ];
 
 const FAQ = [
   {
-    q: "What is the live demo?",
-    a: "The full protocol runs on Arc mainnet with real USDC. To start, the founder has seeded the vault with $100, which is enough for traders to try positions of $5–$10. Join the waitlist to hear when we open with deeper liquidity.",
-  },
-  {
     q: "Can I lose more than I put in?",
-    a: "No. If the price moves against you far enough, the position is closed automatically (liquidated). You lose your margin and nothing more. The money LPs lent you is repaid first.",
+    a: "No. The most you can lose is your deposit. Trades close automatically as losses approach it, but if the price drops suddenly you can still lose all of it.",
   },
   {
-    q: "Why would LPs lend to me?",
-    a: "They earn a cut of every profitable trade (8% at 5x, 12% at 10x), weekly rollover fees after the free first week, and lending yield on cash that isn't in use. Losses are absorbed by traders' margin and the insurance pool before LPs.",
+    q: "What happens if I keep losing?",
+    a: "Nothing yet. Later, repeated losses will lower an account's leverage and can get it blocked. To stop people dodging that with fresh wallets, we plan to add sybil resistance using on-chain zk-KYC or World ID.",
   },
   {
-    q: "Are there fees?",
-    a: "No fees to open or close. The first 7 days are free. After that, if you keep the trade open, you pay 8% a year (about 0.15% a week) on the borrowed amount. When you win, a share of the profit goes to LPs and the protocol.",
+    q: "Who decides if I get paid?",
+    a: "Nobody. The smart contract pays you when you close. There is no review and no approval.",
   },
   {
-    q: "Is this spot or perps?",
-    a: "Spot. Your position actually buys the token on Uniswap and holds it in its own contract until you close. There are no funding rates and no synthetic exposure.",
+    q: "What does the vault earn?",
+    a: "8% of trader profit at 5x, 12% at 10x, plus borrowing fees after a trader's first free week.",
   },
   {
-    q: "How do LP withdrawals work?",
-    a: "You request a withdrawal and it is paid after a 30-day queue. Requested shares stop earning but are still exposed to losses until they're paid. If the vault is very busy (80% or more lent out), exiting forfeits 25% of the yield you've earned, never your principal. That forfeited yield rewards LPs who add liquidity when it's needed most.",
-  },
-  {
-    q: "Is it audited?",
-    a: "Not yet. This is an early MVP with small amounts on purpose. Only use money you can afford to lose.",
-  },
-  {
-    q: "What do I need to start?",
-    a: "A browser wallet such as MetaMask or Rabby, and some USDC on Arc. USDC also pays for gas on Arc, so you don't need any other token.",
+    q: "Can vault deposits lose money?",
+    a: "Yes, if trades go badly enough. Trader deposits and an insurance reserve absorb losses first, but returns aren't guaranteed.",
   },
 ];
 
+function Arrow({ className = "" }: { className?: string }) {
+  return (
+    <svg className={`h-3.5 w-3.5 shrink-0 ${className}`} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function Points({ items }: { items: string[] }) {
+  return (
+    <ul className="space-y-2.5">
+      {items.map((p) => (
+        <li key={p} className="flex gap-3 text-fg2">
+          <svg className="mt-1.5 h-3.5 w-3.5 shrink-0 text-accent" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {p}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function Landing() {
   return (
-    <div className="relative overflow-x-hidden">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-[radial-gradient(ellipse_at_top,rgba(99,140,255,0.18),transparent_60%)]"
-      />
-
-      <header className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
-        <Logo />
-        <nav className="hidden items-center gap-6 text-sm text-muted md:flex">
-          <a href="#traders" className="hover:text-fg">For traders</a>
-          <a href="#lps" className="hover:text-fg">For LPs</a>
-          <a href="#calculator" className="hover:text-fg">Calculator</a>
-          <a href="#faq" className="hover:text-fg">FAQ</a>
-        </nav>
-        <Link href="/app" className="btn-secondary">
-          Open app
-        </Link>
+    <div className="overflow-x-clip">
+      <header className="sticky top-0 z-30 border-b border-line/70 bg-bg/80 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-[1080px] items-center justify-between gap-6 px-4 sm:px-8">
+          <Logo />
+          <nav className="hidden items-center gap-7 text-sm text-fg2 md:flex" aria-label="Sections">
+            <a href="#how" className="transition-colors hover:text-accent">How it works</a>
+            <a href="#start" className="transition-colors hover:text-accent">Trade or earn</a>
+            <a href="#faq" className="transition-colors hover:text-accent">FAQ</a>
+          </nav>
+          <Link href="/app/trade" className="btn-primary">
+            Open app
+          </Link>
+        </div>
       </header>
 
-      <main className="relative">
-        {/* Hero */}
-        <section className="mx-auto max-w-6xl px-4 pb-12 pt-10 text-center sm:px-6 md:pt-20">
-          <span className="pill border border-up/30 bg-up/10 text-up">● MVP live on Arc mainnet</span>
-          <h1 className="mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight sm:text-6xl">
-            Trade crypto with <span className="text-accent">10x buying power.</span> Risk only what you put in.
-          </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-lg text-muted">
-            Put in $10 and trade up to $100 of real BTC or ETH on Uniswap. Liquidity providers fund the rest and share in the
-            profits. No fees to open or close.
-          </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/app/trade" className="btn-primary px-6 py-3 text-base">
-              Try the live demo →
-            </Link>
-            <a href="#waitlist" className="btn-secondary px-6 py-3 text-base">
-              Join the waitlist
-            </a>
-          </div>
-          <p className="mt-3 text-xs text-muted">The demo uses real USDC on Arc mainnet. Positions are $5–$10 while the vault is small.</p>
-          <div className="mx-auto mt-12 max-w-4xl text-left">
-            <LiveStats />
+      <main>
+        {/* Hero: the pitch on the left, the product on the right */}
+        <section className="relative">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-40 left-1/2 h-[640px] w-[1200px] -translate-x-1/2 opacity-60 blur-3xl"
+            style={{
+              background:
+                "radial-gradient(40% 45% at 25% 40%, rgb(var(--accent) / 0.22), transparent 70%), radial-gradient(30% 35% at 75% 25%, rgb(234 34 97 / 0.14), transparent 70%)",
+            }}
+          />
+          <div className="relative mx-auto grid max-w-[1080px] items-center gap-12 px-4 pb-20 pt-14 sm:px-8 md:pt-20 lg:grid-cols-[1.1fr_1fr]">
+            <div>
+              <h1 className="text-[44px] leading-[1.04] tracking-display sm:text-[60px]">
+                Capital for traders.
+                <br />
+                <span className="text-accent">Returns for investors.</span>
+              </h1>
+              <p className="mt-6 max-w-[40ch] text-lg text-muted">
+                Trade with up to 10x your money. Or fund the traders and earn from every win.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/app/trade" className="btn-primary px-5 py-3 text-base">
+                  Start trading <Arrow />
+                </Link>
+                <Link href="/app/earn" className="btn-secondary px-5 py-3 text-base">
+                  Earn as an investor
+                </Link>
+              </div>
+              <p className="mt-6 text-sm text-muted">Settled in USDC on Arc. No sign-up, just a wallet.</p>
+            </div>
+            <div className="lg:pl-4">
+              <Calculator />
+            </div>
           </div>
         </section>
 
-        {/* Two audiences */}
-        <section className="mx-auto grid max-w-6xl gap-6 px-4 py-12 sm:px-6 md:grid-cols-2">
-          <div id="traders" className="card scroll-mt-24 p-6 md:p-8">
-            <span className="pill bg-accent/15 text-accent">For traders</span>
-            <h2 className="mt-4 text-2xl font-semibold">Bigger positions, capped downside</h2>
-            <ol className="mt-6 space-y-5">
-              {TRADER_STEPS.map((s, i) => (
-                <li key={s.t} className="flex gap-4">
-                  <span className="num flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-panel2 text-sm font-semibold">{i + 1}</span>
-                  <div>
-                    <div className="font-medium">{s.t}</div>
-                    <p className="mt-1 text-sm text-muted">{s.d}</p>
-                  </div>
+        {/* How it works */}
+        <section id="how" className="scroll-mt-20 border-t border-line bg-panel2">
+          <div className="mx-auto max-w-[1080px] px-4 py-20 sm:px-8">
+            <span className="eyebrow">How it works</span>
+            <h2 className="mt-3 text-[32px] leading-tight">One vault, two sides.</h2>
+            <ol className="mt-10 grid gap-8 md:grid-cols-3">
+              {STEPS.map((s) => (
+                <li key={s.n}>
+                  <div className="num flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-sm text-accent">{s.n}</div>
+                  <h3 className="mt-4 text-xl">{s.t}</h3>
+                  <p className="mt-2 text-muted">{s.d}</p>
                 </li>
               ))}
             </ol>
-            <Link href="/app/trade" className="btn-primary mt-8 w-full">
-              Start trading
-            </Link>
-          </div>
-          <div id="lps" className="card scroll-mt-24 p-6 md:p-8">
-            <span className="pill bg-up/15 text-up">For liquidity providers</span>
-            <h2 className="mt-4 text-2xl font-semibold">Earn from traders' profits</h2>
-            <ol className="mt-6 space-y-5">
-              {LP_STEPS.map((s, i) => (
-                <li key={s.t} className="flex gap-4">
-                  <span className="num flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-panel2 text-sm font-semibold">{i + 1}</span>
-                  <div>
-                    <div className="font-medium">{s.t}</div>
-                    <p className="mt-1 text-sm text-muted">{s.d}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <Link href="/app/earn" className="btn-secondary mt-8 w-full">
-              Provide liquidity
-            </Link>
           </div>
         </section>
 
-        {/* Calculator */}
-        <section id="calculator" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-12 sm:px-6">
-          <div className="mb-8 text-center">
-            <h2 className="text-3xl font-semibold">See exactly what happens</h2>
-            <p className="mt-2 text-muted">Pick an amount and drag the price. These numbers use the same rules as the contracts.</p>
+        {/* Pick a side */}
+        <section id="start" className="scroll-mt-20 border-t border-line">
+          <div className="mx-auto grid max-w-[1080px] gap-5 px-4 py-20 sm:px-8 md:grid-cols-2">
+            <article className="card flex flex-col p-7 sm:p-8">
+              <span className="eyebrow">For traders</span>
+              <h2 className="mt-3 text-[28px] leading-tight">Trade bigger than your wallet.</h2>
+              <div className="mt-6">
+                <Points items={TRADER_POINTS} />
+              </div>
+              <Link href="/app/trade" className="btn-primary mt-8 self-start px-5 py-3 text-base">
+                Start trading <Arrow />
+              </Link>
+            </article>
+
+            <article className="flex flex-col rounded-xl bg-brand p-7 text-white sm:p-8">
+              <span className="eyebrow text-[#b9b9f9]">For investors</span>
+              <h2 className="mt-3 text-[28px] leading-tight text-white">Earn from traders, without trading.</h2>
+              <ul className="mt-6 space-y-2.5">
+                {INVESTOR_POINTS.map((p) => (
+                  <li key={p} className="flex gap-3 text-white/85">
+                    <svg className="mt-1.5 h-3.5 w-3.5 shrink-0 text-[#b9b9f9]" viewBox="0 0 16 16" fill="none" aria-hidden>
+                      <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {p}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/app/earn" className="btn mt-8 self-start bg-white px-5 py-3 text-base text-brand hover:bg-white/90">
+                Deposit to the vault <Arrow />
+              </Link>
+              <p className="mt-auto pt-6 text-xs text-white/60">Deposits can lose value. Returns aren&apos;t guaranteed.</p>
+            </article>
           </div>
-          <Calculator />
         </section>
 
-        {/* How money flows */}
-        <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-          <div className="card p-6 md:p-8">
-            <h2 className="text-2xl font-semibold">Where the money goes when a trade closes</h2>
-            <div className="mt-6 grid gap-4 md:grid-cols-4">
-              {[
-                { n: "1", t: "LPs are repaid", d: "The borrowed amount goes back to the vault first, always." },
-                { n: "2", t: "Weekly fees", d: "After the free first week: 80% to LPs, 20% to insurance." },
-                { n: "3", t: "Your margin back", d: "You get your original stake back before any profit is split." },
-                { n: "4", t: "Profit split", d: "You keep 90% (5x) or 85% (10x). The rest goes to LPs and the protocol." },
-              ].map((s) => (
-                <div key={s.n} className="rounded-lg bg-bg p-4">
-                  <div className="num text-sm text-accent">Step {s.n}</div>
-                  <div className="mt-1 font-medium">{s.t}</div>
-                  <p className="mt-1 text-sm text-muted">{s.d}</p>
-                </div>
+        {/* FAQ */}
+        <section id="faq" className="scroll-mt-20 border-t border-line">
+          <div className="mx-auto grid max-w-[1080px] gap-10 px-4 py-20 sm:px-8 md:grid-cols-[1fr_2fr]">
+            <h2 className="text-[32px] leading-tight">Questions</h2>
+            <div className="divide-y divide-line border-y border-line">
+              {FAQ.map((f) => (
+                <details key={f.q} className="group">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-lg text-fg transition-colors hover:text-accent [&::-webkit-details-marker]:hidden">
+                    {f.q}
+                    <svg className="h-4 w-4 shrink-0 text-muted transition-transform duration-200 group-open:rotate-45" viewBox="0 0 16 16" fill="none" aria-hidden>
+                      <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </summary>
+                  <p className="max-w-[65ch] pb-5 text-muted">{f.a}</p>
+                </details>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Safety */}
-        <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-          <h2 className="mb-8 text-center text-3xl font-semibold">Built to protect both sides</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {SAFETY.map((s) => (
-              <div key={s.t} className="card p-5">
-                <div className="font-medium">{s.t}</div>
-                <p className="mt-2 text-sm text-muted">{s.d}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
         {/* Waitlist */}
-        <section id="waitlist" className="mx-auto max-w-3xl scroll-mt-24 px-4 py-16 sm:px-6">
-          <div className="card p-6 text-center md:p-10">
-            <h2 className="text-3xl font-semibold">Get in before full launch</h2>
-            <p className="mx-auto mt-3 max-w-xl text-muted">
-              The demo is live now with a small vault. Leave your email and we'll tell you when {APP_NAME} opens with deeper liquidity,
-              bigger positions and more markets.
-            </p>
+        <section id="waitlist" className="scroll-mt-20 border-t border-line bg-panel2">
+          <div className="mx-auto max-w-[1080px] px-4 py-20 text-center sm:px-8">
+            <h2 className="text-[32px] leading-tight">Get early access</h2>
+            <p className="mx-auto mt-3 max-w-md text-muted">We&apos;ll email you once when {APP_NAME} launches on mainnet.</p>
             <div className="mx-auto mt-8 max-w-xl text-left">
               <WaitlistForm />
             </div>
           </div>
         </section>
-
-        {/* FAQ */}
-        <section id="faq" className="mx-auto max-w-3xl scroll-mt-24 px-4 py-12 sm:px-6">
-          <h2 className="mb-6 text-3xl font-semibold">Questions</h2>
-          <div className="divide-y divide-line rounded-xl border border-line bg-panel">
-            {FAQ.map((f) => (
-              <details key={f.q} className="group px-5 py-4">
-                <summary className="flex cursor-pointer list-none items-center justify-between font-medium">
-                  {f.q}
-                  <span className="text-muted transition group-open:rotate-45">+</span>
-                </summary>
-                <p className="mt-3 text-sm leading-relaxed text-muted">{f.a}</p>
-              </details>
-            ))}
-          </div>
-        </section>
       </main>
 
       <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-xs text-muted sm:px-6 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex max-w-[1080px] flex-col gap-6 px-4 py-10 text-sm text-muted sm:px-8 md:flex-row md:items-start md:justify-between">
           <Logo />
-          <p className="max-w-2xl">
-            Experimental, unaudited software running with real funds. Leveraged trading can lose your entire margin quickly, and
-            LP deposits can lose value. Nothing here is financial advice. Check that crypto trading is legal where you live.
+          <p className="max-w-2xl text-xs leading-relaxed">
+            Experimental, unaudited software. Leveraged trading can lose your entire deposit quickly, and vault deposits can lose value.
+            Nothing here is financial advice.
           </p>
         </div>
       </footer>

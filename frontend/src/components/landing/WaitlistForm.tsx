@@ -43,9 +43,8 @@ export function WaitlistForm({ source = "landing" }: { source?: string }) {
 
   if (state === "done") {
     return (
-      <div className="rounded-xl border border-up/40 bg-up/10 p-5 text-center">
-        <div className="text-2xl">🎉</div>
-        <p className="mt-2 font-medium">{message}</p>
+      <div role="status" className="rounded border border-up/30 bg-up/5 p-5 text-center">
+        <p className="text-up">{message}</p>
       </div>
     );
   }
