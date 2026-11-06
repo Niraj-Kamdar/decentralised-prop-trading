@@ -1,11 +1,16 @@
 /**
- * Minimal keeper for the MVP. Without a keeper, nobody liquidates underwater positions, closes expired
- * epochs or executes take-profit / stop-loss orders, and LP principal is at risk.
+ * Keeper for the protocol. It does two jobs:
  *
- *   KEEPER_PRIVATE_KEY=0x... PYTH_API_KEY=... npm run keeper
+ *  1. Records the Uniswap v4 TWAP. The oracle only accepts observations from whitelisted recorders, and without
+ *     fresh observations every price read reverts (TwapStale), so nothing can open, close or be liquidated.
+ *  2. Liquidates underwater positions, closes expired epochs, executes take-profit / stop-loss orders and pays
+ *     out matured LP withdrawals.
  *
- * Reads the same NEXT_PUBLIC_* configuration as the app (.env.local / .env). The keeper wallet needs a little
- * USDC for gas and Pyth fees; it earns the keeper bounty on liquidations, expiries and triggers.
+ *   KEEPER_PRIVATE_KEY=0x... npm run keeper
+ *
+ * Reads the same NEXT_PUBLIC_* configuration as the app (.env.local / .env). The keeper wallet must be a
+ * recorder on the oracle (UniV4TwapOracle.setRecorder) and needs a little USDC for gas. It earns the keeper
+ * bounty on liquidations, expiries and triggers.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -21,18 +26,18 @@ for (const f of [".env.local", ".env"]) {
     /* file absent */
   }
 }
-// The browser default (/api/pyth) is a relative proxy URL; the keeper talks to Hermes directly.
-process.env.NEXT_PUBLIC_HERMES_URL ||= process.env.PYTH_HERMES_URL || "https://hermes.pyth.network";
 
 const INTERVAL_MS = Number(process.env.KEEPER_INTERVAL_MS || 5000);
+/** How often to record a TWAP observation. Must stay well under the oracle's maxStaleness (90s by default). */
+const RECORD_INTERVAL_MS = Number(process.env.KEEPER_RECORD_INTERVAL_MS || 10_000);
 
 async function main() {
-  const { createPublicClient, createWalletClient, http, maxUint256, zeroAddress, formatUnits } = await import("viem");
+  const { createPublicClient, createWalletClient, http, formatUnits } = await import("viem");
   const { privateKeyToAccount } = await import("viem/accounts");
-  const { pmAbi, vaultAbi, erc20Abi } = await import("../src/abi");
-  const { arc, ASSETS, CONTRACTS, RPC_URL, USDC, assetByAddress, PROTOCOL_CONFIGURED } = await import("../src/lib/config");
-  const { fetchPriceUpdate, priceFor } = await import("../src/lib/pyth");
-  const { prepareExit, valueInUsdc } = await import("../src/lib/trade");
+  const { pmAbi, vaultAbi, oracleAbi } = await import("../src/abi");
+  const { arc, ASSETS, CONTRACTS, RPC_URL, assetByAddress, PROTOCOL_CONFIGURED } = await import("../src/lib/config");
+  const { readOraclePrices, priceOf } = await import("../src/lib/oracle");
+  const { valueInUsdc } = await import("../src/lib/trade");
 
   const pk = process.env.KEEPER_PRIVATE_KEY as `0x${string}` | undefined;
   if (!pk) throw new Error("KEEPER_PRIVATE_KEY is not set");
@@ -42,56 +47,79 @@ async function main() {
   const pc = createPublicClient({ chain: arc, transport: http(RPC_URL) });
   const wc = createWalletClient({ chain: arc, transport: http(RPC_URL), account });
   const pm = { address: CONTRACTS.positionManager, abi: pmAbi } as const;
+  const oracle = { address: CONTRACTS.oracle, abi: oracleAbi } as const;
   const log = (...a: unknown[]) => console.log(new Date().toISOString(), ...a);
-  log(`keeper ${account.address} on ${arc.name} (${arc.id})`);
+  const short = (e: unknown) => (e instanceof Error ? e.message.split("\n")[0] : String(e));
+  log(`keeper ${account.address} on ${arc.name} (${arc.id}) via ${RPC_URL}`);
 
-  // PositionManager pulls Pyth fees from the caller in ERC-20 USDC.
-  const allowance = await pc.readContract({ address: USDC, abi: erc20Abi, functionName: "allowance", args: [account.address, CONTRACTS.positionManager] });
-  if (allowance < 10n ** 12n) {
-    const hash = await wc.writeContract({ address: USDC, abi: erc20Abi, functionName: "approve", args: [CONTRACTS.positionManager, maxUint256] });
-    await pc.waitForTransactionReceipt({ hash });
-    log("approved USDC for Pyth fees");
+  const isRecorder = await pc.readContract({ ...oracle, functionName: "isRecorder", args: [account.address] });
+  if (!isRecorder) log("WARNING: this wallet is not a TWAP recorder; the oracle will go stale. Ask the owner to call setRecorder.");
+
+  // ------------------------------------------------------------------ 1. TWAP recording
+  let lastRecord = 0;
+  async function record() {
+    if (!isRecorder || Date.now() - lastRecord < RECORD_INTERVAL_MS) return;
+    lastRecord = Date.now();
+    const assets = ASSETS.map((a) => a.address);
+    // Ticks as of the latest mined block. The oracle rejects a sample whose live tick has moved further than
+    // maxRecordDeviation from these, so sandwiching this transaction cannot drag the TWAP.
+    const ticks = await pc.multicall({
+      contracts: assets.map((a) => ({ ...oracle, functionName: "spotTick", args: [a] }) as const),
+      allowFailure: false,
+    });
+    try {
+      const hash = await wc.writeContract({ ...oracle, functionName: "record", args: [assets, ticks], account, chain: arc });
+      const r = await pc.waitForTransactionReceipt({ hash });
+      if (r.status !== "success") log(`record reverted: ${hash}`);
+    } catch (e) {
+      log("record failed:", short(e));
+    }
   }
 
+  // ------------------------------------------------------------------ 2. Positions and LP queue
   const open = new Set<bigint>();
   let scanned = 0n;
   let lastQueueCheck = 0;
 
-  async function tick() {
-    // 1. Discover new positions.
+  async function positions() {
     const count = await pc.readContract({ ...pm, functionName: "positionCount" });
     for (let id = scanned + 1n; id <= count; id++) open.add(id);
     scanned = count;
     if (open.size === 0) return;
 
     const ids = [...open];
-    const positions = await pc.multicall({ contracts: ids.map((id) => ({ ...pm, functionName: "getPosition", args: [id] }) as const), allowFailure: false });
-    const live = ids.map((id, i) => ({ id, p: positions[i] })).filter(({ id, p }) => {
-      if (p.status !== 1) open.delete(id);
-      return p.status === 1;
+    const all = await pc.multicall({
+      contracts: ids.map((id) => ({ ...pm, functionName: "getPosition", args: [id] }) as const),
+      allowFailure: false,
     });
+    const live = ids
+      .map((id, i) => ({ id, p: all[i] }))
+      .filter(({ id, p }) => {
+        if (p.status !== 1) open.delete(id);
+        return p.status === 1;
+      });
     if (live.length === 0) return;
 
-    const [thresholds, liqSlip, exitSlip] = await Promise.all([
-      pc.multicall({ contracts: live.map(({ id }) => ({ ...pm, functionName: "liquidationThreshold", args: [id] }) as const), allowFailure: false }),
-      pc.readContract({ ...pm, functionName: "maxLiqSlippageBps" }),
-      pc.readContract({ ...pm, functionName: "maxExitSlippageBps" }),
+    const [thresholds, prices] = await Promise.all([
+      pc.multicall({
+        contracts: live.map(({ id }) => ({ ...pm, functionName: "liquidationThreshold", args: [id] }) as const),
+        allowFailure: false,
+      }),
+      readOraclePrices(pc),
     ]);
-    const { prices } = await fetchPriceUpdate(ASSETS.filter((a) => a.address !== zeroAddress).map((a) => a.pythId));
-    const now = Math.floor(Date.now() / 1000);
+    const now = Number((await pc.getBlock()).timestamp);
 
-    // 2. Decide what each position needs.
     for (const [i, { id, p }] of live.entries()) {
       const asset = assetByAddress(p.spotToken);
-      const px = asset && priceFor(prices, asset.pythId);
-      if (!asset || !px) continue;
-      const mark = valueInUsdc(p.spotAmount, px.price18, asset.decimals);
+      const px = asset && priceOf(prices, asset.address);
+      if (!asset || !px?.twap18) continue; // oracle warming up or stale: nothing can execute anyway
+      const mark = valueInUsdc(p.spotAmount, px.twap18, asset.decimals);
       const liquidatable = mark <= (thresholds[i] as bigint);
       const expired = now >= Number(p.epochEndTime);
       const triggered =
-        (p.stopLossPrice > 0n && px.price18 <= p.stopLossPrice) ||
-        (p.takeProfitPrice > 0n && px.price18 >= p.takeProfitPrice) ||
-        (p.trailingStopPrice > 0n && px.price18 <= p.trailingStopPrice);
+        (p.stopLossPrice > 0n && px.twap18 <= p.stopLossPrice) ||
+        (p.takeProfitPrice > 0n && px.twap18 >= p.takeProfitPrice) ||
+        (p.trailingStopPrice > 0n && px.twap18 <= p.trailingStopPrice);
 
       let fn: "liquidate" | "processEpoch" | "executeTrigger" | null = null;
       if (liquidatable) fn = "liquidate";
@@ -100,47 +128,48 @@ async function main() {
       if (!fn) continue;
 
       try {
-        const prep = await prepareExit(pc, {
-          asset,
-          proxy: p.proxy,
-          spotAmount: p.spotAmount,
-          slippageBps: Number(liquidatable ? liqSlip : exitSlip),
-          maxSlippageBps: Number(liquidatable ? liqSlip : exitSlip),
-        });
-        const { request } = await pc.simulateContract({ ...pm, functionName: fn, args: [id, prep.swap, prep.priceUpdateData], account });
+        // minAmountOut = 0: the contract still enforces its floor (TWAP mark minus the allowed slippage). If the
+        // pool is below that floor the simulation reverts and we retry on the next tick.
+        const { request } = await pc.simulateContract({ ...pm, functionName: fn, args: [id, 0n], account });
         const hash = await wc.writeContract(request);
         const r = await pc.waitForTransactionReceipt({ hash });
         log(`${fn} #${id} (${asset.symbol}, mark $${formatUnits(mark, 6)}): ${r.status} ${hash}`);
       } catch (e) {
-        log(`${fn} #${id} failed:`, e instanceof Error ? e.message.split("\n")[0] : e);
+        log(`${fn} #${id} not executable yet:`, short(e));
       }
     }
+  }
 
-    // 3. Every 10 minutes, pay out matured LP withdrawal requests if liquidity allows.
-    if (Date.now() - lastQueueCheck > 10 * 60_000) {
-      lastQueueCheck = Date.now();
-      const v = { address: CONTRACTS.lpVault, abi: vaultAbi } as const;
-      const [head, len, budget] = await pc.multicall({
-        contracts: [{ ...v, functionName: "queueHead" }, { ...v, functionName: "queueLength" }, { ...v, functionName: "fulfilmentBudget" }],
-        allowFailure: false,
-      });
-      if (head < len && budget > 0n) {
-        try {
-          const { request } = await pc.simulateContract({ ...v, functionName: "processRedemptions", args: [20n], account });
-          const hash = await wc.writeContract(request);
-          log(`processRedemptions: ${hash}`);
-        } catch (e) {
-          log("processRedemptions skipped:", e instanceof Error ? e.message.split("\n")[0] : e);
-        }
+  async function lpQueue() {
+    if (Date.now() - lastQueueCheck < 10 * 60_000) return;
+    lastQueueCheck = Date.now();
+    const v = { address: CONTRACTS.lpVault, abi: vaultAbi } as const;
+    const [head, len, budget] = await pc.multicall({
+      contracts: [
+        { ...v, functionName: "queueHead" },
+        { ...v, functionName: "queueLength" },
+        { ...v, functionName: "fulfilmentBudget" },
+      ],
+      allowFailure: false,
+    });
+    if (head < len && budget > 0n) {
+      try {
+        const { request } = await pc.simulateContract({ ...v, functionName: "processRedemptions", args: [20n], account });
+        const hash = await wc.writeContract(request);
+        log(`processRedemptions: ${hash}`);
+      } catch (e) {
+        log("processRedemptions skipped:", short(e));
       }
     }
   }
 
   for (;;) {
-    try {
-      await tick();
-    } catch (e) {
-      log("tick error:", e instanceof Error ? e.message.split("\n")[0] : e);
+    for (const job of [record, positions, lpQueue]) {
+      try {
+        await job();
+      } catch (e) {
+        log(`${job.name} error:`, short(e));
+      }
     }
     await new Promise((r) => setTimeout(r, INTERVAL_MS));
   }

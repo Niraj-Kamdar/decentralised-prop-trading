@@ -16,7 +16,7 @@ export default function TradePage() {
   const { get, error: priceError } = usePrices();
   const { data: proto } = useProtocol();
   const { data: positions, isLoading } = usePositions();
-  const live = get(asset.pythId);
+  const live = get(asset.address);
 
   const liqPrices = useMemo(
     () =>
@@ -41,12 +41,17 @@ export default function TradePage() {
           ))}
         </div>
         <div>
-          <div className="text-xs text-muted">Oracle price</div>
-          <div className="num text-lg font-semibold">{price(live?.price)}</div>
+          <div className="text-xs text-muted">10-min TWAP</div>
+          <div className="num text-lg font-semibold">{live?.ready ? price(live.twap) : "warming up"}</div>
         </div>
         <div>
-          <div className="text-xs text-muted">Confidence</div>
-          <div className="num text-sm">±{live ? ((live.conf / live.price) * 100).toFixed(3) : "—"}%</div>
+          <div className="text-xs text-muted">Pool price</div>
+          <div className="num text-sm">
+            {price(live?.spot)}
+            {live?.spot && live.twap ? (
+              <span className="ml-1 text-muted">({(((live.spot - live.twap) / live.twap) * 100).toFixed(2)}% vs TWAP)</span>
+            ) : null}
+          </div>
         </div>
         <div>
           <div className="text-xs text-muted">Vault can lend</div>
@@ -58,22 +63,22 @@ export default function TradePage() {
         </div>
         <div>
           <div className="text-xs text-muted">Venue</div>
-          <div className="text-sm">Uniswap · spot</div>
+          <div className="text-sm">Uniswap v4 · spot</div>
         </div>
       </div>
 
       {priceError && (
         <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">
-          Live prices unavailable: {priceError.message}. Trading needs a working Pyth price feed.
+          Live prices unavailable: {priceError.message}. Trading needs the on-chain price oracle.
         </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="card h-[340px] overflow-hidden sm:h-[460px] lg:h-auto">
-          <PriceChart asset={asset} livePrice={live?.price} liqPrices={liqPrices} />
+          <PriceChart asset={asset} spot={live?.spot} twap={live?.twap} liqPrices={liqPrices} />
         </div>
         <div className="card">
-          <OrderPanel asset={asset} price18={live?.price18} />
+          <OrderPanel asset={asset} price18={live?.twap18} />
         </div>
       </div>
 

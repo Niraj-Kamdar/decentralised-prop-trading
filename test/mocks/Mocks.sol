@@ -5,7 +5,10 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IPyth} from "../../src/interfaces/IPyth.sol";
+import {IOracle, IV4SwapRouter} from "../../src/interfaces/IProtocol.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
 /// @notice 6-decimal USDC stand-in with a Circle-style blocklist (reverts on send/receive).
 contract MockUSDC is ERC20 {
@@ -52,43 +55,53 @@ contract MockMetaMorpho is ERC4626 {
     constructor(IERC20 usdc) ERC4626(usdc) ERC20("MetaMorpho USDC", "mmUSDC") {}
 }
 
-contract MockPyth is IPyth {
-    mapping(bytes32 => Price) internal _prices;
-    uint256 public feePerUpdate;
+/// @notice IOracle stand-in: a settable TWAP price per asset and a synthetic USDC pool key.
+contract MockOracle is IOracle {
+    address public immutable usdc;
+    mapping(address => uint256) public price18;
+    mapping(address => uint8) public decimalsOf;
 
-    function setPrice(bytes32 id, int64 price, uint64 conf, int32 expo, uint256 publishTime) public {
-        _prices[id] = Price(price, conf, expo, publishTime);
+    error FeedNotEnabled(address asset);
+
+    constructor(address usdc_) {
+        usdc = usdc_;
     }
 
-    function setFee(uint256 fee) external {
-        feePerUpdate = fee;
+    function setPrice(address token, uint256 p) external {
+        if (decimalsOf[token] == 0) decimalsOf[token] = IERC20Metadata(token).decimals();
+        price18[token] = p;
     }
 
-    function getPriceUnsafe(bytes32 id) external view returns (Price memory) {
-        return _prices[id];
+    function getPrice(address asset) public view returns (uint256) {
+        uint256 p = price18[asset];
+        if (p == 0) revert FeedNotEnabled(asset);
+        return p;
     }
 
-    function getUpdateFee(bytes[] calldata updateData) external view returns (uint256) {
-        return feePerUpdate * updateData.length;
+    function valueInUsdc(address asset, uint256 amount) external view returns (uint256) {
+        return amount * getPrice(asset) / 10 ** (uint256(decimalsOf[asset]) + 12);
     }
 
-    /// @dev Each update = abi.encode(bytes32 id, int64 price, uint64 conf, int32 expo); stamped with block.timestamp.
-    function updatePriceFeeds(bytes[] calldata updateData) external payable {
-        require(msg.value >= feePerUpdate * updateData.length, "fee");
-        for (uint256 i; i < updateData.length; ++i) {
-            (bytes32 id, int64 price, uint64 conf, int32 expo) =
-                abi.decode(updateData[i], (bytes32, int64, uint64, int32));
-            setPrice(id, price, conf, expo, block.timestamp);
-        }
+    function poolKey(address asset) external view returns (PoolKey memory key) {
+        getPrice(asset);
+        (address c0, address c1) = asset < usdc ? (asset, usdc) : (usdc, asset);
+        key = PoolKey({
+            currency0: Currency.wrap(c0),
+            currency1: Currency.wrap(c1),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(0))
+        });
     }
 }
 
-/// @notice Constant-price router. Prices are 1e18 USD per whole token; USDC is assumed $1.
-/// @dev `recipient` lets tests simulate calldata that redirects proceeds away from the proxy.
-contract MockRouter {
+/// @notice Constant-price stand-in for V4SwapRouter. Prices are 1e18 USD per whole token; USDC is assumed $1.
+/// @dev `redirectTo` simulates a router that sends proceeds somewhere other than `recipient`.
+contract MockRouter is IV4SwapRouter {
     mapping(address => uint256) public price18;
     address public immutable usdc;
     uint256 public feeBps;
+    address public redirectTo;
 
     constructor(address usdc_) {
         usdc = usdc_;
@@ -102,6 +115,10 @@ contract MockRouter {
         feeBps = f;
     }
 
+    function setRedirect(address to) external {
+        redirectTo = to;
+    }
+
     function quote(address tokenIn, address tokenOut, uint256 amountIn) public view returns (uint256 out) {
         if (tokenIn == usdc) {
             uint8 d = IERC20Metadata(tokenOut).decimals();
@@ -113,13 +130,19 @@ contract MockRouter {
         out = out * (10_000 - feeBps) / 10_000;
     }
 
-    function swapExactIn(address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, address recipient)
-        external
-        returns (uint256 out)
-    {
+    function swapExactIn(
+        PoolKey calldata key,
+        bool zeroForOne,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address recipient
+    ) external returns (uint256 out) {
+        (Currency cin, Currency cout) = zeroForOne ? (key.currency0, key.currency1) : (key.currency1, key.currency0);
+        address tokenIn = Currency.unwrap(cin);
+        address tokenOut = Currency.unwrap(cout);
         IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
         out = quote(tokenIn, tokenOut, amountIn);
-        require(out >= minOut, "router: slippage");
-        IERC20(tokenOut).transfer(recipient, out);
+        require(out >= minAmountOut, "router: slippage");
+        IERC20(tokenOut).transfer(redirectTo == address(0) ? recipient : redirectTo, out);
     }
 }

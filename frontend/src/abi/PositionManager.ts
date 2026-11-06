@@ -21,7 +21,7 @@ export const positionManagerAbi = [
       {
         "name": "oracle_",
         "type": "address",
-        "internalType": "contract IOracleVerifier"
+        "internalType": "contract IOracle"
       },
       {
         "name": "owner_",
@@ -229,31 +229,9 @@ export const positionManagerAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "swap",
-        "type": "tuple",
-        "internalType": "struct PositionManager.SwapInstruction",
-        "components": [
-          {
-            "name": "router",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "minAmountOut",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "data",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
-      },
-      {
-        "name": "priceUpdateData",
-        "type": "bytes[]",
-        "internalType": "bytes[]"
+        "name": "minAmountOut",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -288,31 +266,9 @@ export const positionManagerAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "swap",
-        "type": "tuple",
-        "internalType": "struct PositionManager.SwapInstruction",
-        "components": [
-          {
-            "name": "router",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "minAmountOut",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "data",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
-      },
-      {
-        "name": "priceUpdateData",
-        "type": "bytes[]",
-        "internalType": "bytes[]"
+        "name": "minAmountOut",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -530,31 +486,9 @@ export const positionManagerAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "swap",
-        "type": "tuple",
-        "internalType": "struct PositionManager.SwapInstruction",
-        "components": [
-          {
-            "name": "router",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "minAmountOut",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "data",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
-      },
-      {
-        "name": "priceUpdateData",
-        "type": "bytes[]",
-        "internalType": "bytes[]"
+        "name": "minAmountOut",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -706,31 +640,9 @@ export const positionManagerAbi = [
             "internalType": "bool"
           },
           {
-            "name": "swap",
-            "type": "tuple",
-            "internalType": "struct PositionManager.SwapInstruction",
-            "components": [
-              {
-                "name": "router",
-                "type": "address",
-                "internalType": "address"
-              },
-              {
-                "name": "minAmountOut",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "data",
-                "type": "bytes",
-                "internalType": "bytes"
-              }
-            ]
-          },
-          {
-            "name": "priceUpdateData",
-            "type": "bytes[]",
-            "internalType": "bytes[]"
+            "name": "minAmountOut",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -765,7 +677,7 @@ export const positionManagerAbi = [
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IOracleVerifier"
+        "internalType": "contract IOracle"
       }
     ],
     "stateMutability": "view"
@@ -858,31 +770,9 @@ export const positionManagerAbi = [
         "internalType": "uint256"
       },
       {
-        "name": "swapIfClosing",
-        "type": "tuple",
-        "internalType": "struct PositionManager.SwapInstruction",
-        "components": [
-          {
-            "name": "router",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "minAmountOut",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "data",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
-      },
-      {
-        "name": "priceUpdateData",
-        "type": "bytes[]",
-        "internalType": "bytes[]"
+        "name": "minAmountOut",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -1071,17 +961,12 @@ export const positionManagerAbi = [
   },
   {
     "type": "function",
-    "name": "setRouter",
+    "name": "setSwapRouter",
     "inputs": [
       {
         "name": "router",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "allowed",
-        "type": "bool",
-        "internalType": "bool"
       }
     ],
     "outputs": [],
@@ -1149,6 +1034,19 @@ export const positionManagerAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "swapRouter",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -1713,19 +1611,13 @@ export const positionManagerAbi = [
   },
   {
     "type": "event",
-    "name": "RouterSet",
+    "name": "SwapRouterSet",
     "inputs": [
       {
         "name": "router",
         "type": "address",
         "indexed": true,
         "internalType": "address"
-      },
-      {
-        "name": "allowed",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -1913,22 +1805,6 @@ export const positionManagerAbi = [
   },
   {
     "type": "error",
-    "name": "MinOutBelowOracleBound",
-    "inputs": [
-      {
-        "name": "minOut",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "bound",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "NotAuthorized",
     "inputs": []
   },
@@ -1993,17 +1869,6 @@ export const positionManagerAbi = [
   },
   {
     "type": "error",
-    "name": "RouterNotWhitelisted",
-    "inputs": [
-      {
-        "name": "router",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "SafeCastOverflowedUintDowncast",
     "inputs": [
       {
@@ -2028,6 +1893,11 @@ export const positionManagerAbi = [
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "SwapRouterNotSet",
+    "inputs": []
   },
   {
     "type": "error",

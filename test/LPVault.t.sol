@@ -69,9 +69,9 @@ contract LPVaultTest is BaseTest {
         uint256 shares = vault.deposit(100_000e6, attacker);
         vm.stopPrank();
 
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(trader);
-        pm.closePosition(posId, s, _noUpdate());
+        pm.closePosition(posId, s);
 
         vm.prank(attacker);
         vault.requestRedeem(shares, attacker, attacker);

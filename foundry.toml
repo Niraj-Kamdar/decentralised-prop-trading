@@ -7,10 +7,12 @@ evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
 via_ir = true
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
 remappings = [
   "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
   "@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/",
   "forge-std/=lib/forge-std/src/",
+  "@uniswap/v4-core/=node_modules/@uniswap/v4-core/",
 ]
 
 [fuzz]

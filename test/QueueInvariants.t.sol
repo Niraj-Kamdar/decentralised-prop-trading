@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {BaseTest} from "./Base.t.sol";
 import {LPVault} from "../src/LPVault.sol";
 import {PositionManager} from "../src/PositionManager.sol";
-import {MockUSDC, MockToken, MockMetaMorpho, MockPyth, MockRouter} from "./mocks/Mocks.sol";
+import {MockUSDC, MockToken, MockMetaMorpho, MockOracle, MockRouter} from "./mocks/Mocks.sol";
 
 /// @dev Drives random LP / trader / keeper actions against the vault for the invariant suite.
 contract QueueHandler is Test {
@@ -13,10 +13,9 @@ contract QueueHandler is Test {
     PositionManager internal pm;
     MockUSDC internal usdc;
     MockMetaMorpho internal morpho;
-    MockPyth internal pyth;
+    MockOracle internal oracle;
     MockRouter internal router;
     address internal cirBTC;
-    bytes32 internal constant BTC_ID = keccak256("BTC/USD");
 
     address[] internal lps;
     address internal trader = makeAddr("inv-trader");
@@ -33,7 +32,7 @@ contract QueueHandler is Test {
         PositionManager pm_,
         MockUSDC usdc_,
         MockMetaMorpho morpho_,
-        MockPyth pyth_,
+        MockOracle oracle_,
         MockRouter router_,
         address cirBTC_
     ) {
@@ -41,7 +40,7 @@ contract QueueHandler is Test {
         pm = pm_;
         usdc = usdc_;
         morpho = morpho_;
-        pyth = pyth_;
+        oracle = oracle_;
         router = router_;
         cirBTC = cirBTC_;
         for (uint256 i; i < 3; ++i) {
@@ -61,7 +60,7 @@ contract QueueHandler is Test {
     }
 
     function _refreshPrice() internal {
-        pyth.setPrice(BTC_ID, int64(int256(50_000e8)), uint64(50_000e8 / 10_000), -8, block.timestamp);
+        oracle.setPrice(cirBTC, 50_000e18);
         router.setPrice(cirBTC, 50_000e18);
     }
 
@@ -120,18 +119,8 @@ contract QueueHandler is Test {
         if (free < vault.pendingRedeemAssets() + borrowed) return;
         if (pm.assetExposure(cirBTC) + notional > vault.totalAssets()) return;
 
-        address proxy = pm.predictProxyAddress(pm.positionCount() + 1);
         PositionManager.OpenParams memory p = PositionManager.OpenParams({
-            spotToken: cirBTC,
-            tier: 10,
-            margin: uint128(margin),
-            autoRollover: true,
-            swap: PositionManager.SwapInstruction({
-                router: address(router),
-                minAmountOut: 0,
-                data: abi.encodeCall(MockRouter.swapExactIn, (address(usdc), cirBTC, notional, 0, proxy))
-            }),
-            priceUpdateData: new bytes[](0)
+            spotToken: cirBTC, tier: 10, margin: uint128(margin), autoRollover: true, minAmountOut: 0
         });
         vm.prank(trader);
         openPositions.push(pm.openPosition(p));
@@ -142,15 +131,8 @@ contract QueueHandler is Test {
         _refreshPrice();
         uint256 idx = seed % openPositions.length;
         uint256 posId = openPositions[idx];
-        PositionManager.Position memory pos = pm.getPosition(posId);
-        uint256 bound_ = pm.markValue(posId) * 9_900 / 10_000;
-        PositionManager.SwapInstruction memory s = PositionManager.SwapInstruction({
-            router: address(router),
-            minAmountOut: bound_,
-            data: abi.encodeCall(MockRouter.swapExactIn, (cirBTC, address(usdc), pos.spotAmount, 0, pos.proxy))
-        });
         vm.prank(trader);
-        try pm.closePosition(posId, s, new bytes[](0)) {}
+        try pm.closePosition(posId, 0) {}
         catch {
             ++traderCloseFailures;
         }
@@ -204,7 +186,7 @@ contract QueueInvariantsTest is BaseTest {
         pm.setAsset(address(cirBTC), true, 10_000, 2_000);
         vault.setQueueParams(7 days, 8_000, 2_500, 10_000); // shorter queue so runs reach fulfilment
         vm.stopPrank();
-        handler = new QueueHandler(vault, pm, usdc, morpho, pyth, router, address(cirBTC));
+        handler = new QueueHandler(vault, pm, usdc, morpho, oracle, router, address(cirBTC));
         targetContract(address(handler));
     }
 

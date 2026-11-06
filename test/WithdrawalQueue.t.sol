@@ -26,7 +26,7 @@ contract WithdrawalQueueTest is BaseTest {
         return _request(who, vault.convertToShares(assets));
     }
 
-    /// @dev Time travel and refresh oracle publish times (Pyth data must be <= 5s old).
+    /// @dev Time travel and re-pin oracle prices.
     function _skip(uint256 dt) internal {
         skip(dt);
         _setPrice(address(cirBTC), 50_000);
@@ -48,9 +48,9 @@ contract WithdrawalQueueTest is BaseTest {
     }
 
     function _closeAtMark(uint256 posId) internal {
-        PositionManager.SwapInstruction memory s = _exitSwap(posId, 100);
+        uint256 s = _exitSwap(posId, 100);
         vm.prank(trader);
-        pm.closePosition(posId, s, _noUpdate());
+        pm.closePosition(posId, s);
     }
 
     function _claimAll(address who) internal returns (uint256 assets) {

@@ -2,14 +2,21 @@
   "name": "decentralised-prop-trading",
   "private": true,
   "scripts": {
-    "forge": "node node_modules/@foundry-rs/forge/bin.mjs",
-    "build": "node node_modules/@foundry-rs/forge/bin.mjs build --sizes",
-    "test": "node node_modules/@foundry-rs/forge/bin.mjs test -vv",
-    "fmt": "node node_modules/@foundry-rs/forge/bin.mjs fmt"
+    "forge": "node script/foundry.mjs forge",
+    "build": "node script/foundry.mjs forge build --sizes",
+    "test": "node script/foundry.mjs forge test -vv",
+    "test:fork": "ARC_MAINNET_RPC_URL=${ARC_MAINNET_RPC_URL:-https://rpc.mainnet.arc.io} node script/foundry.mjs forge test --match-path 'test/fork/*' -vv",
+    "fmt": "node script/foundry.mjs forge fmt",
+    "fork": "bash script/fork/fork.sh",
+    "fork:move": "bash script/fork/move-price.sh",
+    "fork:warp": "bash script/fork/warp.sh"
   },
   "devDependencies": {
+    "@foundry-rs/anvil": "1.7.1",
+    "@foundry-rs/cast": "1.7.1",
     "@foundry-rs/forge": "1.7.1",
     "@openzeppelin/contracts": "5.4.0",
-    "@openzeppelin/contracts-upgradeable": "5.4.0"
+    "@openzeppelin/contracts-upgradeable": "5.4.0",
+    "@uniswap/v4-core": "1.0.2"
   }
 }

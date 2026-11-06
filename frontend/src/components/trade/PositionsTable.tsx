@@ -12,8 +12,7 @@ import { approveIfNeeded } from "@/hooks/useUsdc";
 import { addressUrl, arc, assetByAddress, CONTRACTS, type Asset } from "@/lib/config";
 import { dateTime, parseUsdc, price, timeLeft, toUsdc, usd } from "@/lib/format";
 import { positionView } from "@/lib/positionView";
-import { fetchPriceUpdate } from "@/lib/pyth";
-import { prepareExit, pythFeeUsdc } from "@/lib/trade";
+import { prepareExit } from "@/lib/trade";
 
 type Tab = "open" | "history";
 
@@ -69,7 +68,7 @@ function OpenTable({ rows, loading }: { rows: Position[]; loading: boolean }) {
           <tbody>
             {rows.map((pos) => {
               const asset = assetByAddress(pos.spotToken);
-              const v = positionView(pos, asset?.decimals ?? 18, asset ? get(asset.pythId)?.price18 : undefined, tierParams(proto, pos.tier));
+              const v = positionView(pos, asset?.decimals ?? 18, asset ? get(asset.address)?.twap18 ?? undefined : undefined, tierParams(proto, pos.tier));
               const atRisk = v.health !== null && v.health < 0.25;
               return (
                 <tr key={pos.id.toString()} className="border-b border-line/60 last:border-0">
@@ -170,37 +169,32 @@ function CloseModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onCl
   const { data: proto } = useProtocol();
   const { run, busy, walletClient, publicClient } = useTx();
   const [slippage, setSlippage] = useState<number>(50);
-  const v = positionView(pos, asset.decimals, get(asset.pythId)?.price18, tierParams(proto, pos.tier));
+  const v = positionView(pos, asset.decimals, get(asset.address)?.twap18 ?? undefined, tierParams(proto, pos.tier));
 
   async function submit() {
     if (!walletClient || !publicClient) return;
     const ok = await run(`${asset.symbol} position closed`, [
       {
-        title: "Approve oracle fee",
-        send: async () => {
-          const { updateData } = await fetchPriceUpdate([asset.pythId]);
-          const fee = await pythFeeUsdc(publicClient, updateData);
-          return fee > 0n ? approveIfNeeded(publicClient, walletClient, CONTRACTS.positionManager, fee) : null;
-        },
-      },
-      {
         title: `Close ${asset.symbol} position`,
         send: async () => {
           const prep = await prepareExit(publicClient, {
             asset,
-            proxy: pos.proxy,
             spotAmount: pos.spotAmount,
             slippageBps: slippage,
             maxSlippageBps: proto?.pm.maxExitSlippageBps ?? 100,
+            twap18: get(asset.address)?.twap18 ?? null,
           });
+          if (prep.mark === null) throw new Error("The price oracle is warming up. Try again in a few minutes.");
           if (prep.poolBelowOracle) {
-            throw new Error("The Uniswap pool price is too far below the oracle price to close safely right now. Try again shortly.");
+            throw new Error(
+              "The Uniswap pool is trading too far below the 10-minute average price to close safely right now. Try again when the pool recovers.",
+            );
           }
           return walletClient.writeContract({
             address: CONTRACTS.positionManager,
             abi: pmAbi,
             functionName: "closePosition",
-            args: [pos.id, prep.swap, prep.priceUpdateData],
+            args: [pos.id, prep.minAmountOut],
             account: walletClient.account!,
             chain: arc,
           });
@@ -214,7 +208,7 @@ function CloseModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onCl
     <Modal open onClose={onClose} title={`Close ${asset.symbol} ${pos.tier}x`}>
       <div className="rounded-lg bg-bg p-3">
         <Row label="Sell" value={`${v.tokens.toLocaleString("en-US", { maximumFractionDigits: 8 })} ${asset.symbol}`} />
-        <Row label="Value at oracle price" value={usd(v.markValue)} />
+        <Row label="Value at 10-min avg price" value={usd(v.markValue)} />
         <Row label="Repay LPs" value={usd(toUsdc(pos.borrowedPrincipal) + v.rolloverDebt)} />
         <Row label="You receive (est.)" value={usd(v.receive)} tone={v.pnl !== null && v.pnl >= 0 ? "up" : "down"} />
         <Row label="PnL" value={usd(v.pnl, { sign: true })} tone={v.pnl !== null && v.pnl >= 0 ? "up" : "down"} />
@@ -325,7 +319,7 @@ function OrdersModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onC
         {field("Take profit", tp, setTp, `Close when ${asset.symbol} reaches or exceeds this price.`)}
         {field("Stop loss", sl, setSl, `Close when ${asset.symbol} falls to this price or lower.`)}
         {field("Trailing floor", trail, setTrail, "A stop you can raise as price moves up.")}
-        <p className="text-xs text-muted">Orders are executed by keeper bots at the oracle price. Leave a field empty to clear it.</p>
+        <p className="text-xs text-muted">Orders are executed by keeper bots when the 10-minute average price crosses them. Leave a field empty to clear it.</p>
         <button className="btn-primary w-full py-3" disabled={busy} onClick={submit}>
           {busy ? "Working…" : "Save orders"}
         </button>

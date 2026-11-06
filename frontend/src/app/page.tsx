@@ -19,8 +19,8 @@ const LP_STEPS = [
 
 const SAFETY = [
   { t: "Losses capped at margin", d: "A trade is closed automatically before it can lose more than the trader put in." },
-  { t: "One wallet per trade", d: "Every position lives in its own isolated contract. It can only swap through approved Uniswap routers." },
-  { t: "Oracle-checked prices", d: "Pyth prices guard every entry and exit, so nobody can profit by manipulating a pool." },
+  { t: "One wallet per trade", d: "Every position lives in its own isolated contract. It can only trade through the protocol's Uniswap v4 router." },
+  { t: "Manipulation-resistant prices", d: "A 10-minute Uniswap v4 average price guards every entry, exit and liquidation, so a flash pump or dump cannot move it." },
   { t: "Insurance pool", d: "Liquidation penalties and part of every fee build a reserve that absorbs bad debt before LPs." },
   { t: "Orderly LP exits", d: "Withdrawals go through a 30-day queue, so a rush to the exit can't break open trades." },
   { t: "Non-custodial", d: "All logic runs in smart contracts on Arc, where gas is paid in USDC. No company holds your money." },
@@ -90,7 +90,7 @@ export default function Landing() {
             Trade crypto with <span className="text-accent">10x buying power.</span> Risk only what you put in.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-muted">
-            Put in $10 and trade up to $100 of real BTC or ETH on Uniswap. Liquidity providers fund the rest and share in the
+            Put in $10 and trade up to $100 of real BTC or ETH on Uniswap v4. Liquidity providers fund the rest and share in the
             profits. No fees to open or close.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

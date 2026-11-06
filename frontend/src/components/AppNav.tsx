@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "./ConnectButton";
 import { Logo } from "./Logo";
-import { NETWORK, PROTOCOL_CONFIGURED, TRADING_CONFIGURED } from "@/lib/config";
+import { NETWORK_LABEL, PROTOCOL_CONFIGURED } from "@/lib/config";
 import { useProtocol } from "@/hooks/useProtocol";
 
 const LINKS = [
@@ -38,7 +38,7 @@ export function AppNav() {
           </div>
           <div className="flex items-center gap-3">
             <span className="pill hidden border border-line text-muted md:inline-flex">
-              Arc {NETWORK === "testnet" ? "testnet" : "mainnet"}
+              {NETWORK_LABEL}
             </span>
             <ConnectButton />
           </div>
@@ -58,11 +58,6 @@ export function AppNav() {
       {!PROTOCOL_CONFIGURED && (
         <div className="border-b border-warn/30 bg-warn/10 px-4 py-2 text-center text-sm text-warn">
           Contract addresses are not configured. Set the NEXT_PUBLIC_* variables (see frontend/.env.example).
-        </div>
-      )}
-      {PROTOCOL_CONFIGURED && !TRADING_CONFIGURED && (
-        <div className="border-b border-warn/30 bg-warn/10 px-4 py-2 text-center text-sm text-warn">
-          No Uniswap router is configured, so trading is disabled. Set NEXT_PUBLIC_SWAP_ROUTER.
         </div>
       )}
       {data?.pm.paused && (
