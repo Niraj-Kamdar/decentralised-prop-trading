@@ -1,26 +1,42 @@
 "use client";
 
 import { createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { Asset } from "@/lib/config";
 
-const RES = [
-  { key: "5", label: "5m", sec: 300 },
-  { key: "15", label: "15m", sec: 900 },
-  { key: "60", label: "1h", sec: 3600 },
-  { key: "240", label: "4h", sec: 14400 },
-  { key: "1D", label: "1D", sec: 86400 },
-] as const;
+type Point = { time: number; value: number };
+/** Samples survive asset switches and re-mounts for the browser session (capped). */
+const history = new Map<string, { spot: Point[]; twap: Point[] }>();
+const MAX_POINTS = 5_000;
 
-type Candle = { time: number; open: number; high: number; low: number; close: number };
+function push(arr: Point[], time: number, value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return;
+  const last = arr.at(-1);
+  if (last && last.time === time) last.value = value;
+  else if (!last || time > last.time) arr.push({ time, value });
+  if (arr.length > MAX_POINTS) arr.splice(0, arr.length - MAX_POINTS);
+}
 
-export function PriceChart({ asset, livePrice, liqPrices = [] }: { asset: Asset; livePrice?: number; liqPrices?: number[] }) {
+/**
+ * Live chart built from on-chain samples: the Uniswap v4 pool price (spot) and the 10-minute TWAP that every
+ * protocol check uses, plus liquidation lines for the trader's open positions.
+ */
+export function PriceChart({
+  asset,
+  spot,
+  twap,
+  liqPrices = [],
+}: {
+  asset: Asset;
+  spot?: number | null;
+  twap?: number | null;
+  liqPrices?: number[];
+}) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
-  const series = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const last = useRef<Candle | null>(null);
-  const [res, setRes] = useState<(typeof RES)[number]>(RES[1]);
-  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
+  const spotSeries = useRef<ISeriesApi<"Line"> | null>(null);
+  const twapSeries = useRef<ISeriesApi<"Line"> | null>(null);
+  const key = asset.address.toLowerCase();
 
   useEffect(() => {
     if (!el.current) return;
@@ -31,61 +47,46 @@ export function PriceChart({ asset, livePrice, liqPrices = [] }: { asset: Asset;
       layout: { background: { color: "transparent" }, textColor: rgb("--muted"), fontSize: 11 },
       grid: { vertLines: { color: "rgba(6,27,49,0.05)" }, horzLines: { color: "rgba(6,27,49,0.05)" } },
       rightPriceScale: { borderColor: rgb("--line") },
-      timeScale: { borderColor: rgb("--line"), timeVisible: true },
+      timeScale: { borderColor: rgb("--line"), timeVisible: true, secondsVisible: true },
       crosshair: { mode: 0 },
     });
-    series.current = c.addCandlestickSeries({
-      upColor: rgb("--up"),
-      downColor: rgb("--down"),
-      wickUpColor: rgb("--up"),
-      wickDownColor: rgb("--down"),
-      borderVisible: false,
-    });
+    spotSeries.current = c.addLineSeries({ color: rgb("--fg"), lineWidth: 2, title: "Pool" });
+    twapSeries.current = c.addLineSeries({ color: rgb("--accent"), lineWidth: 2, lineStyle: 2, title: "10m TWAP" });
     chart.current = c;
     return () => {
       c.remove();
       chart.current = null;
-      series.current = null;
+      spotSeries.current = null;
+      twapSeries.current = null;
     };
   }, []);
 
+  // Reload the stored samples when the market changes.
   useEffect(() => {
-    let cancelled = false;
-    setStatus("loading");
-    fetch(`/api/candles?symbol=${encodeURIComponent(asset.chartSymbol)}&resolution=${res.key}`)
-      .then((r) => r.json())
-      .then((j: { candles?: Candle[] }) => {
-        if (cancelled || !series.current) return;
-        const candles = j.candles ?? [];
-        series.current.setData(candles.map((k) => ({ ...k, time: k.time as UTCTimestamp })));
-        last.current = candles.at(-1) ?? null;
-        chart.current?.timeScale().fitContent();
-        setStatus(candles.length ? "ok" : "error");
-      })
-      .catch(() => !cancelled && setStatus("error"));
-    return () => {
-      cancelled = true;
-    };
-  }, [asset.chartSymbol, res]);
+    const h = history.get(key) ?? { spot: [], twap: [] };
+    history.set(key, h);
+    spotSeries.current?.setData(h.spot.map((p) => ({ ...p, time: p.time as UTCTimestamp })));
+    twapSeries.current?.setData(h.twap.map((p) => ({ ...p, time: p.time as UTCTimestamp })));
+    chart.current?.timeScale().fitContent();
+  }, [key]);
 
-  // Stream the live oracle price into the current candle.
+  // Append each new on-chain sample.
   useEffect(() => {
-    if (!livePrice || !series.current) return;
-    const bucket = Math.floor(Date.now() / 1000 / res.sec) * res.sec;
-    // Without history (e.g. Benchmarks unavailable) the chart builds itself from live oracle ticks.
-    const prev = last.current ?? { time: bucket, open: livePrice, high: livePrice, low: livePrice, close: livePrice };
-    const k: Candle =
-      bucket > prev.time
-        ? { time: bucket, open: prev.close, high: Math.max(prev.close, livePrice), low: Math.min(prev.close, livePrice), close: livePrice }
-        : { ...prev, high: Math.max(prev.high, livePrice), low: Math.min(prev.low, livePrice), close: livePrice };
-    last.current = k;
-    series.current.update({ ...k, time: k.time as UTCTimestamp });
-  }, [livePrice, res.sec]);
+    const h = history.get(key);
+    if (!h) return;
+    const now = Math.floor(Date.now() / 1000);
+    push(h.spot, now, spot);
+    push(h.twap, now, twap);
+    const s = h.spot.at(-1);
+    const t = h.twap.at(-1);
+    if (s && s.time === now) spotSeries.current?.update({ ...s, time: s.time as UTCTimestamp });
+    if (t && t.time === now) twapSeries.current?.update({ ...t, time: t.time as UTCTimestamp });
+  }, [key, spot, twap]);
 
   // Liquidation price lines for the trader's open positions in this market.
   const liqKey = liqPrices.map((p) => p.toPrecision(8)).join(",");
   useEffect(() => {
-    const s = series.current;
+    const s = twapSeries.current;
     if (!s || !liqKey) return;
     const lines = liqKey.split(",").map(Number).map((p) =>
       s.createPriceLine({ price: p, color: "rgba(216,28,86,0.85)", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Liq." }),
@@ -95,17 +96,14 @@ export function PriceChart({ asset, livePrice, liqPrices = [] }: { asset: Asset;
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-1 border-b border-line px-3 py-2">
-        {RES.map((r) => (
-          <button
-            key={r.key}
-            onClick={() => setRes(r)}
-            className={`rounded px-2 py-1 text-xs font-medium ${r.key === res.key ? "bg-panel2 text-fg" : "text-muted hover:text-fg"}`}
-          >
-            {r.label}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-muted">{status === "error" ? "History unavailable: live ticks only" : "Pyth oracle prices"}</span>
+      <div className="flex items-center gap-4 border-b border-line px-3 py-2 text-xs">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-0.5 w-4 bg-fg" /> Uniswap pool
+        </span>
+        <span className="flex items-center gap-1.5 text-accent">
+          <span className="inline-block h-0.5 w-4 border-t-2 border-dashed border-accent" /> 10-min TWAP (used for risk)
+        </span>
+        <span className="ml-auto text-muted">Live on-chain samples</span>
       </div>
       <div ref={el} className="min-h-[260px] flex-1" />
     </div>

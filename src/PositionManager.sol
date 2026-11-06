@@ -16,15 +16,19 @@ import {ArcConstants} from "./libraries/ArcConstants.sol";
 import {
     ILPVault,
     IInsuranceReserve,
-    IOracleVerifier,
+    IOracle,
+    IV4SwapRouter,
     ITraderProxy,
     IRouterRegistry,
     IRiskView
 } from "./interfaces/IProtocol.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
 /// @title PositionManager
 /// @notice Orchestrates leveraged spot positions: clone-per-position custody, vault borrowing, 7-day epochs with
 ///         lazy 8% APR rollover debt, oracle-gated liquidations, and the settlement / bad-debt waterfall.
+///         Spot is bought and sold on the asset's Uniswap v4 pool and marked at that pool's 10-minute TWAP.
 /// @dev No function is payable and there is no receive(): native USDC (18-dec msg.value) is always rejected.
 contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -91,19 +95,12 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
         uint16 stressShockBps; // adverse price move assumed by the LP withdrawal solvency gate
     }
 
-    struct SwapInstruction {
-        address router;
-        uint256 minAmountOut;
-        bytes data; // raw calldata executed on `router` by the TraderProxy
-    }
-
     struct OpenParams {
         address spotToken;
         uint8 tier;
         uint128 margin;
         bool autoRollover;
-        SwapInstruction swap;
-        bytes[] priceUpdateData;
+        uint256 minAmountOut; // minimum spot tokens bought; the TWAP entry check applies on top
     }
 
     // ---------------------------------------------------------------------
@@ -113,10 +110,12 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     IERC20 public immutable usdc;
     ILPVault public immutable lpVault;
     IInsuranceReserve public immutable insurance;
-    IOracleVerifier public immutable oracle;
+    IOracle public immutable oracle;
     address public immutable proxyImplementation;
 
     address public guardian;
+    /// @notice The V4SwapRouter every position trades through; the only router TraderProxy clones may call.
+    address public swapRouter;
 
     uint256 public positionCount;
     mapping(uint256 posId => Position) internal _positions;
@@ -177,7 +176,7 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     event PayoutClaimed(address indexed trader, uint256 amount);
     event TierSet(uint8 indexed tier, TierConfig config);
     event AssetSet(address indexed token, AssetConfig config);
-    event RouterSet(address indexed router, bool allowed);
+    event SwapRouterSet(address indexed router);
     event GuardianSet(address indexed guardian);
     event RiskParamsSet(
         uint256 rolloverAprBps,
@@ -197,12 +196,11 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     error InvalidAsset();
     error InvalidTier(uint8 tier);
     error AssetNotEnabled(address token);
-    error RouterNotWhitelisted(address router);
+    error SwapRouterNotSet();
     error BelowMinNotional(uint256 notional);
     error ExposureCapExceeded(address token, uint256 exposureAfter, uint256 cap);
     error EntryPriceDeviation(uint256 markValue, uint256 notional);
     error UnhealthyAtOpen(uint256 markValue, uint256 threshold);
-    error MinOutBelowOracleBound(uint256 minOut, uint256 bound);
     error PositionNotOpen(uint256 posId);
     error NotAuthorized();
     error EpochNotEnded(uint64 epochEndTime);
@@ -216,7 +214,7 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     // Construction
     // ---------------------------------------------------------------------
 
-    constructor(IERC20 usdc_, ILPVault lpVault_, IInsuranceReserve insurance_, IOracleVerifier oracle_, address owner_)
+    constructor(IERC20 usdc_, ILPVault lpVault_, IInsuranceReserve insurance_, IOracle oracle_, address owner_)
         Ownable(owner_)
     {
         if (
@@ -261,14 +259,12 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
         if (!t.enabled) revert InvalidTier(p.tier);
         AssetConfig memory a = assetConfigs[p.spotToken];
         if (!a.enabled) revert AssetNotEnabled(p.spotToken);
-        if (!isWhitelistedRouter[p.swap.router]) revert RouterNotWhitelisted(p.swap.router);
+        if (swapRouter == address(0)) revert SwapRouterNotSet();
 
         uint256 margin = p.margin;
         uint256 notional = margin * p.tier;
         if (notional < minNotional) revert BelowMinNotional(notional);
         uint256 borrowed = notional - margin;
-
-        _updateOracle(p.priceUpdateData);
 
         uint256 exposureAfter = assetExposure[p.spotToken] + notional;
         uint256 cap = Math.mulDiv(lpVault.totalAssets(), a.maxExposureBps, BPS);
@@ -283,14 +279,13 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
         usdc.safeTransferFrom(msg.sender, proxy, margin);
         lpVault.allocateToPosition(proxy, borrowed);
 
-        uint256 spotAmount = ITraderProxy(proxy)
-            .executeSwap(p.swap.router, address(usdc), p.spotToken, notional, p.swap.minAmountOut, p.swap.data);
+        uint256 spotAmount = _swap(proxy, address(usdc), p.spotToken, notional, p.minAmountOut);
 
-        // Oracle sanity: a self-sandwiched entry would hand LP principal to the attacker's pool.
-        uint256 markValue = oracle.valueInUsdc(p.spotToken, spotAmount);
-        if (markValue * BPS < notional * (BPS - maxEntrySlippageBps)) revert EntryPriceDeviation(markValue, notional);
+        // TWAP sanity: a self-sandwiched entry would hand LP principal to the attacker's pool.
+        uint256 entryMark = oracle.valueInUsdc(p.spotToken, spotAmount);
+        if (entryMark * BPS < notional * (BPS - maxEntrySlippageBps)) revert EntryPriceDeviation(entryMark, notional);
         uint256 threshold = borrowed + Math.mulDiv(notional, t.maintenanceBps, BPS);
-        if (markValue <= threshold) revert UnhealthyAtOpen(markValue, threshold);
+        if (entryMark <= threshold) revert UnhealthyAtOpen(entryMark, threshold);
 
         uint64 epochEnd = (block.timestamp + EPOCH_DURATION).toUint64();
         _positions[posId] = Position({
@@ -316,19 +311,19 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     }
 
     /// @notice TR-03: unwind 100% of spot and settle. Works while paused.
-    /// @dev The trader's `minAmountOut` must sit within `maxExitSlippageBps` of the oracle mark, otherwise a trader
-    ///      could dump the spot into their own manipulated pool and push the loss onto LP principal.
-    function closePosition(uint256 posId, SwapInstruction calldata swap, bytes[] calldata priceUpdateData)
+    /// @dev The swap must return at least `mark * (1 - maxExitSlippageBps)` at the TWAP, otherwise a trader could dump
+    ///      the spot into their own manipulated pool and push the loss onto LP principal. `minAmountOut` can only
+    ///      tighten that floor (pass 0 to use the oracle floor alone).
+    function closePosition(uint256 posId, uint256 minAmountOut)
         external
         nonReentrant
         onlyOpen(posId)
         onlyTraderOrOperator(posId)
     {
         Position storage pos = _positions[posId];
-        _updateOracle(priceUpdateData);
         _catchUpEpochs(posId, pos);
         uint256 mark = oracle.valueInUsdc(pos.spotToken, pos.spotAmount);
-        _exitAndSettle(posId, pos, swap, mark, maxExitSlippageBps, CloseReason.MANUAL, false);
+        _exitAndSettle(posId, pos, minAmountOut, mark, maxExitSlippageBps, CloseReason.MANUAL, false);
     }
 
     /// @notice TR-04: top up collateral. The top-up repays vault principal directly, lowering B (and the
@@ -392,14 +387,9 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     // ---------------------------------------------------------------------
 
     /// @notice KP-02: at/after epoch end, roll (if autoRollover and healthy) or force-close for a bounty.
-    function processEpoch(uint256 posId, SwapInstruction calldata swapIfClosing, bytes[] calldata priceUpdateData)
-        external
-        nonReentrant
-        onlyOpen(posId)
-    {
+    function processEpoch(uint256 posId, uint256 minAmountOut) external nonReentrant onlyOpen(posId) {
         Position storage pos = _positions[posId];
         if (block.timestamp < pos.epochEndTime) revert EpochNotEnded(pos.epochEndTime);
-        _updateOracle(priceUpdateData);
 
         _catchUpEpochs(posId, pos);
         uint256 mark = oracle.valueInUsdc(pos.spotToken, pos.spotAmount);
@@ -408,37 +398,27 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
         if (pos.autoRollover && !liquidatable) return; // rolled; no bounty for a pure roll
 
         if (liquidatable) {
-            _exitAndSettle(posId, pos, swapIfClosing, mark, maxLiqSlippageBps, CloseReason.LIQUIDATION, true);
+            _exitAndSettle(posId, pos, minAmountOut, mark, maxLiqSlippageBps, CloseReason.LIQUIDATION, true);
         } else {
-            _exitAndSettle(posId, pos, swapIfClosing, mark, maxExitSlippageBps, CloseReason.EXPIRY, true);
+            _exitAndSettle(posId, pos, minAmountOut, mark, maxExitSlippageBps, CloseReason.EXPIRY, true);
         }
     }
 
     /// @notice KP-01: permissionless liquidation once V(t) <= B + D_roll + N * mu.
-    function liquidate(uint256 posId, SwapInstruction calldata swap, bytes[] calldata priceUpdateData)
-        external
-        nonReentrant
-        onlyOpen(posId)
-    {
+    function liquidate(uint256 posId, uint256 minAmountOut) external nonReentrant onlyOpen(posId) {
         Position storage pos = _positions[posId];
-        _updateOracle(priceUpdateData);
         _catchUpEpochs(posId, pos);
 
         uint256 mark = oracle.valueInUsdc(pos.spotToken, pos.spotAmount);
         uint256 threshold = _liquidationThreshold(pos);
         if (mark > threshold) revert NotLiquidatable(mark, threshold);
 
-        _exitAndSettle(posId, pos, swap, mark, maxLiqSlippageBps, CloseReason.LIQUIDATION, true);
+        _exitAndSettle(posId, pos, minAmountOut, mark, maxLiqSlippageBps, CloseReason.LIQUIDATION, true);
     }
 
     /// @notice Keeper execution of a trader's stop-loss / take-profit / trailing floor.
-    function executeTrigger(uint256 posId, SwapInstruction calldata swap, bytes[] calldata priceUpdateData)
-        external
-        nonReentrant
-        onlyOpen(posId)
-    {
+    function executeTrigger(uint256 posId, uint256 minAmountOut) external nonReentrant onlyOpen(posId) {
         Position storage pos = _positions[posId];
-        _updateOracle(priceUpdateData);
 
         uint256 price = oracle.getPrice(pos.spotToken);
         bool hit = (pos.stopLossPrice != 0 && price <= pos.stopLossPrice)
@@ -449,9 +429,9 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
         _catchUpEpochs(posId, pos);
         uint256 mark = oracle.valueInUsdc(pos.spotToken, pos.spotAmount);
         if (mark <= _liquidationThreshold(pos)) {
-            _exitAndSettle(posId, pos, swap, mark, maxLiqSlippageBps, CloseReason.LIQUIDATION, true);
+            _exitAndSettle(posId, pos, minAmountOut, mark, maxLiqSlippageBps, CloseReason.LIQUIDATION, true);
         } else {
-            _exitAndSettle(posId, pos, swap, mark, maxExitSlippageBps, CloseReason.TRIGGER, true);
+            _exitAndSettle(posId, pos, minAmountOut, mark, maxExitSlippageBps, CloseReason.TRIGGER, true);
         }
     }
 
@@ -533,7 +513,7 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     function setAsset(address token, bool enabled, uint16 maxExposureBps, uint16 stressShockBps) external onlyOwner {
         if (token == address(0) || token == address(usdc)) revert InvalidAsset();
         if (maxExposureBps > BPS || stressShockBps > MAX_STRESS_SHOCK_BPS) revert InvalidParams();
-        // Requires an oracle feed to exist (OracleVerifier.getPrice reverts otherwise when used).
+        // Requires an oracle feed: the asset's v4 pool is read from the oracle for every swap.
         AssetConfig memory cfg =
             AssetConfig({enabled: enabled, maxExposureBps: maxExposureBps, stressShockBps: stressShockBps});
         assetConfigs[token] = cfg;
@@ -544,10 +524,15 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
         emit AssetSet(token, cfg);
     }
 
-    function setRouter(address router, bool allowed) external onlyOwner {
+    /// @notice Point every future swap at `router`. The previous router loses its whitelist entry at once, so an
+    ///         open position always unwinds through the current router.
+    function setSwapRouter(address router) external onlyOwner {
         if (router == address(0)) revert ZeroAddress();
-        isWhitelistedRouter[router] = allowed;
-        emit RouterSet(router, allowed);
+        address old = swapRouter;
+        if (old != address(0)) isWhitelistedRouter[old] = false;
+        isWhitelistedRouter[router] = true;
+        swapRouter = router;
+        emit SwapRouterSet(router);
     }
 
     function setTier(uint8 tier, TierConfig calldata cfg) external onlyOwner {
@@ -637,27 +622,30 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
         emit EpochRolled(posId, epochs, pos.accruedRolloverDebt, pos.epochEndTime);
     }
 
-    /// @dev Pyth fee is charged to the caller in ERC-20 USDC and sent to the OracleVerifier, whose native
-    ///      balance on Arc is that same USDC; it then pays Pyth in native units.
-    function _updateOracle(bytes[] calldata updateData) internal {
-        if (updateData.length == 0) return;
-        uint256 nativeFee = oracle.getUpdateFee(updateData);
-        uint256 usdcFee = Math.ceilDiv(nativeFee, 1e12); // 18-dec native -> 6-dec ERC-20, rounded up
-        if (usdcFee > 0) usdc.safeTransferFrom(msg.sender, address(oracle), usdcFee);
-        oracle.updatePrices(updateData);
+    /// @dev Exact-input swap of the proxy's `tokenIn` on the asset's v4 pool (the USDC side is always the other).
+    function _swap(address proxy, address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut)
+        internal
+        returns (uint256)
+    {
+        address router = swapRouter;
+        if (router == address(0)) revert SwapRouterNotSet();
+        address spot = tokenIn == address(usdc) ? tokenOut : tokenIn;
+        PoolKey memory key = oracle.poolKey(spot);
+        bool zeroForOne = Currency.unwrap(key.currency0) == tokenIn;
+        bytes memory data = abi.encodeCall(IV4SwapRouter.swapExactIn, (key, zeroForOne, amountIn, minOut, proxy));
+        return ITraderProxy(proxy).executeSwap(router, tokenIn, tokenOut, amountIn, minOut, data);
     }
 
     function _exitAndSettle(
         uint256 posId,
         Position storage pos,
-        SwapInstruction calldata swap,
+        uint256 minAmountOut,
         uint256 mark,
         uint256 slippageBps,
         CloseReason reason,
         bool forced
     ) internal {
-        uint256 bound = Math.mulDiv(mark, BPS - slippageBps, BPS);
-        if (swap.minAmountOut < bound) revert MinOutBelowOracleBound(swap.minAmountOut, bound);
+        uint256 minOut = Math.max(minAmountOut, Math.mulDiv(mark, BPS - slippageBps, BPS));
 
         bool isLiquidation = reason == CloseReason.LIQUIDATION;
         pos.status = isLiquidation ? PositionStatus.LIQUIDATED : PositionStatus.CLOSED;
@@ -666,8 +654,7 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
         --openPositionCount;
 
         address proxy = pos.proxy;
-        uint256 usdcOut = ITraderProxy(proxy)
-            .executeSwap(swap.router, pos.spotToken, address(usdc), pos.spotAmount, swap.minAmountOut, swap.data);
+        uint256 usdcOut = _swap(proxy, pos.spotToken, address(usdc), pos.spotAmount, minOut);
         ITraderProxy(proxy).sweep(address(usdc), address(this), usdcOut);
 
         (uint256 traderPayout, uint256 penalty) = _settle(posId, pos, usdcOut, forced, isLiquidation);

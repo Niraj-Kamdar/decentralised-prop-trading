@@ -1,8 +1,8 @@
 # Fulcrum — Spot-Funded Prop Trading on Arc
 
-**Trade with 5x or 10x leverage using a pool of LP money. No entry fee. No exit fee. First week free.**
+**Trade ETH and BTC with 5x or 10x leverage using a pool of LP money. No entry fee. No exit fee. First week free.**
 
-- **Traders** put in USDC margin and trade spot crypto with more buying power.
+- **Traders** put in USDC margin and go long spot ETH or BTC with more buying power.
 - **LPs** deposit USDC into a vault and earn yield from trader fees and profit share.
 - **Everything is on-chain.** Each trade lives in its own isolated smart wallet.
 
@@ -16,12 +16,13 @@
 flowchart LR
     T([Trader]) -- "margin (USDC)" --> PM[PositionManager]
     LP([LP]) -- "deposit USDC" --> V[(LP Vault<br/>spUSDC)]
-    V -- "idle funds" --> M[MetaMorpho<br/>earns yield]
     V -- "borrowed principal" --> PM
     PM -- "margin + principal" --> P[TraderProxy<br/>one per position]
-    P -- "swap" --> U[Uniswap]
-    O[Pyth Oracle] -. "price check" .-> PM
-    K([Keeper bot]) -- "liquidate / roll / close" --> PM
+    P -- "swap" --> R[V4SwapRouter] --> U[Uniswap v4 pool]
+    U -. "pool price" .-> O[TWAP Oracle<br/>10-min average]
+    O -. "price check" .-> PM
+    K([Keeper bot]) -- "records price" --> O
+    K -- "liquidate / roll / close" --> PM
     PM -- "losses first" --> I[Insurance Reserve]
 ```
 
@@ -30,15 +31,15 @@ flowchart LR
 | **PositionManager** | The brain: opens, rolls, closes, liquidates, settles |
 | **LPVault** | Holds LP money, lends it to positions, earns yield |
 | **TraderProxy** | A tiny wallet per position that holds the spot asset |
-| **OracleVerifier** | Pyth price, max 5s old — the source of truth |
+| **UniV4TwapOracle** | 10-minute average of the Uniswap pool price — the source of truth |
 | **InsuranceReserve** | Absorbs losses before LPs do |
-| **Keeper** | Anyone running the bot; earns a bounty |
+| **Keeper** | Bot that records prices and liquidates; earns a bounty. **Required** — no keeper, no trading |
 
 ---
 
 ## 2. Opening a position
 
-Trader brings **$100**, picks **5x** → trades **$500**. The vault lends the other **$400**.
+Trader brings **$100**, picks **5x** → buys **$500** of ETH or BTC. The vault lends the other **$400**.
 
 ```mermaid
 sequenceDiagram
@@ -46,17 +47,17 @@ sequenceDiagram
     participant PM as PositionManager
     participant V as LP Vault
     participant P as TraderProxy (new clone)
-    participant U as Uniswap
+    participant U as Uniswap v4
     participant O as Oracle
 
     T->>PM: openPosition(margin $100, 5x, asset)
-    PM->>O: fresh price?
+    PM->>O: TWAP price
     PM->>P: create clone, send $100 margin
     PM->>V: borrow $400 for the proxy
     V-->>P: $400
     P->>U: swap $500 USDC → asset
-    PM->>O: did we get a fair price?
-    Note over PM,O: reverts if swap is >1% off oracle<br/>or position would already be liquidatable
+    PM->>O: did we get a fair price vs TWAP?
+    Note over PM,O: reverts if swap is >1% worse than TWAP<br/>or position would already be liquidatable
     PM-->>T: position #N open (7-day epoch)
 ```
 
@@ -90,7 +91,27 @@ position value  ≤  borrowed + rollover debt + maintenance %
 
 ---
 
-## 4. Where does the money go? (settlement waterfall)
+## 4. How prices work (TWAP oracle)
+
+Uniswap pools keep no price history, so a keeper records it. Risk decisions use the **10-minute average**, not the live price, so a quick pool push can't fool the protocol.
+
+```mermaid
+flowchart LR
+    P[Uniswap v4 pool] --> K[Keeper records tick<br/>every few seconds]
+    K --> G{Guards}
+    G --> G1[Sample within ~1% of last block]
+    G --> G2[Max ~5% move per sample]
+    G1 & G2 --> B[(Ring buffer)]
+    B --> T[10-min TWAP]
+    T --> D[Entry · exit · liquidation · TP/SL]
+    B -. "keeper offline > 90s" .-> S[Stale: nothing can be priced]
+```
+
+Trade-offs: after a deploy or a long keeper outage the oracle needs **10 minutes to warm up**; in a fast crash, exits wait until the pool is back within the slippage band or the TWAP catches up.
+
+---
+
+## 5. Where does the money go? (settlement waterfall)
 
 When a position ends, the USDC from selling the spot asset is paid out **in this order**:
 
@@ -124,15 +145,13 @@ flowchart TD
 
 ---
 
-## 5. LP side: deposit, earn, exit
+## 6. LP side: deposit, earn, exit
 
 ```mermaid
 flowchart LR
     D([Deposit USDC]) --> V[(Vault)]
-    V --> S1[Idle → MetaMorpho yield]
     V --> S2[Lent to positions<br/>max 85% utilised]
     S2 --> Y[Rollover fees + profit share]
-    S1 --> Y
     Y -- "12h linear vesting" --> V
 ```
 
@@ -168,7 +187,7 @@ Traders are never affected by any of this: **LP queue logic cannot block, delay,
 
 ---
 
-## 6. Who protects LP money?
+## 7. Who protects LP money?
 
 ```mermaid
 flowchart TB
@@ -178,9 +197,9 @@ flowchart TB
         A3[Whitelisted routers only]
     end
     subgraph "Layer 2 — During the trade"
-        B1[Pyth price ≤ 5s old]
+        B1[10-min TWAP, guarded recording]
         B2[Keepers liquidate early<br/>at maintenance margin]
-        B3[Every swap checked<br/>against the oracle]
+        B3[Every swap checked<br/>against the TWAP]
     end
     subgraph "Layer 3 — After a loss"
         C1[Trader margin absorbs first]
@@ -194,13 +213,14 @@ flowchart TB
 
 ---
 
-## 7. Keepers
+## 8. Keepers
 
-Anyone can run the keeper bot (`npm run keeper` in `frontend/`). It earns a bounty for:
+The keeper bot (`npm run keeper` in `frontend/`) is critical infrastructure. It records oracle prices and earns a bounty for:
 
 ```mermaid
 flowchart LR
-    K([Keeper]) --> L[Liquidate unhealthy positions]
+    K([Keeper]) --> REC[Record TWAP prices]
+    K --> L[Liquidate unhealthy positions]
     K --> E[Close or roll expired epochs]
     K --> TR[Execute stop-loss / take-profit]
     K --> Q[Process LP exit queue]
@@ -208,9 +228,10 @@ flowchart LR
 
 ---
 
-## 8. Trust & safety at a glance
+## 9. Trust & safety at a glance
 
 - **Isolated custody** — one clone wallet per position; a bug in one cannot touch another.
+- **Protocol-built swaps** — callers pass only a minimum output; the contract builds the Uniswap call itself.
 - **Balance-checked swaps** — the proxy measures what it actually received, not what the router claims.
 - **No payout redirection** — payouts only go to the trader, so a blocklisted trader can't route funds elsewhere.
 - **Always-open exits** — closing works even when the protocol is paused.
@@ -218,10 +239,11 @@ flowchart LR
 
 ## Known gaps before audit
 
-- Oracle is Pyth only (no Chainlink fallback); USDC assumed = $1.
-- No Uniswap v4 adapter yet.
+- **TWAP trusts its recorders** (permissioned keepers); if all stop, pricing stops and nobody can be liquidated.
+- **Thin pools** (~$15k ETH, ~$8k BTC at time of writing): a few $k moves price several %. Keep exposure caps far below pool depth.
+- USDC assumed = $1; no external oracle cross-check.
 - Trailing stop has no on-chain high-water tracking.
-- Tests use a constant-price router; no fork tests yet.
+- MetaMorpho integration is optional and not covered by fork tests.
 - Solvency gate assumes keepers liquidate promptly.
 - Pending exit requests block *all* new allocations (more conservative than spec).
 

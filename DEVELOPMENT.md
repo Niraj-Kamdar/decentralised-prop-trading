@@ -5,19 +5,25 @@ Low-level docs for contributors. For the high-level picture, start with the [REA
 ## Setup
 
 ```bash
-npm install                 # forge 1.7.1 + OpenZeppelin 5.4.0 from npm
+npm install                 # forge / anvil / cast 1.7.1, OpenZeppelin 5.4.0, Uniswap v4-core 1.0.2 from npm
 git submodule update --init # forge-std
 ```
 
 ## Build & test
 
 ```bash
-npm run build   # compile + contract sizes (PositionManager ~17.7 KB)
-npm test        # 72 tests incl. 512-run fuzzes and a 256x64 queue invariant suite
-npm run fmt     # forge fmt
+npm run build       # compile + contract sizes
+npm test            # 72 unit tests incl. 512-run fuzzes and a 256x64 queue invariant suite (fork suite skipped)
+npm run test:fork   # 14 tests against a fork of Arc mainnet: real v4 pools, real liquidity
+npm run fmt         # forge fmt
 ```
 
 Run a single test: `npm run forge -- test --match-test <name> -vvv`
+
+`npm run test:fork` forks `https://rpc.mainnet.arc.io` unless `ARC_MAINNET_RPC_URL` is set; `FORK_BLOCK` pins a block.
+The fork suite deploys the protocol exactly as `script/Deploy.s.sol` does, warms up the TWAP, then opens, rallies,
+closes, crashes, liquidates and triggers stop-losses on real ETH and BTC positions, and checks the oracle's
+manipulation guards against live pools.
 
 ## Repo map
 
@@ -28,7 +34,8 @@ flowchart TB
         LPV[LPVault.sol]
         TP[TraderProxy.sol]
         IR[InsuranceReserve.sol]
-        OV[OracleVerifier.sol]
+        OV[UniV4TwapOracle.sol]
+        SR[V4SwapRouter.sol]
     end
     subgraph test
         BT[Base.t.sol: shared setup]
@@ -36,11 +43,13 @@ flowchart TB
         LPT[LPVault.t.sol / WithdrawalQueue.t.sol]
         INV[QueueInvariants.t.sol]
         MVP[MVPConfig.t.sol]
-        MK[mocks/Mocks.sol: constant-price router, mock Pyth/Morpho]
+        FK[fork/: ArcFork.t.sol on real Arc pools]
+        MK[mocks/Mocks.sol]
     end
     subgraph script
         D[Deploy.s.sol]
         C[ConfigureMVP.s.sol]
+        F[fork/: local anvil fork tooling]
     end
     subgraph frontend
         APP[Next.js app + keeper]
@@ -54,12 +63,15 @@ flowchart TB
 | Path | Role |
 |---|---|
 | `src/PositionManager.sol` | Entry point for traders and keepers: opens positions, rolls epochs, liquidates, runs the settlement waterfall |
-| `src/LPVault.sol` | `spUSDC` ERC-4626 vault (UUPS) with ERC-7540 async redemptions: Morpho buffer, lending to proxies, 12h linear profit vesting, 85% utilization cap, 30-day exit queue, stress bonus pot, solvency gate |
-| `src/TraderProxy.sol` | Per-position EIP-1167 clone; swaps only through whitelisted routers and checks its own balance after each swap |
+| `src/LPVault.sol` | `spUSDC` ERC-4626 vault (UUPS) with ERC-7540 async redemptions: lending to proxies, 12h linear profit vesting, 85% utilization cap, 30-day exit queue, stress bonus pot, solvency gate. MetaMorpho is optional (`address(0)` = single-vault mode, the default) |
+| `src/UniV4TwapOracle.sol` | 10-minute TWAP of each asset's Uniswap v4 USDC pool, recorded by whitelisted keepers; prices normalised to 1e18 |
+| `src/V4SwapRouter.sol` | Minimal exact-input, single-pool v4 router (unlock callback, plain ERC-20 approval, no Permit2) |
+| `src/TraderProxy.sol` | Per-position EIP-1167 clone; swaps only through the whitelisted router and checks its own balance after each swap |
 | `src/InsuranceReserve.sol` | First-loss bucket and ops-treasury bucket |
-| `src/OracleVerifier.sol` | Pyth pull oracle: data at most 5s old, confidence within 50 bps; prices normalised to 1e18 |
-| `script/Deploy.s.sol` | Arc deployment and wiring, then hand-off to governance via Ownable2Step |
+| `script/Deploy.s.sol` | Arc mainnet deployment (WETH + cirBTC on their v4 pools), then hand-off to governance via Ownable2Step |
+| `script/lib/ArcMainnet.sol` | Verified Arc addresses: v4 PoolManager / Quoter, WETH, cirBTC and both pool keys |
 | `script/ConfigureMVP.s.sol` | Retunes a deployed protocol for a ~$100 vault with $5-$10 positions |
+| `script/fork/` | Local Arc mainnet fork for UI testing, USDC fork shim, pool mover |
 | `frontend/` | Landing, dashboard, trade terminal, LP vault UI, keeper bot ([frontend/README.md](frontend/README.md)) |
 
 ## Contract call flow
@@ -71,11 +83,12 @@ flowchart LR
         close[closePosition] --> ex
     end
     subgraph Keeper entry
+        rec[oracle.record] -.-> ex
         liq[liquidate] --> ex
         proc[processEpoch] --> ex
         trig[executeTrigger] --> ex
     end
-    ex["_exitAndSettle<br/>oracle-bounded swap"] --> set["_settle<br/>waterfall"]
+    ex["_exitAndSettle<br/>TWAP-bounded swap via V4SwapRouter"] --> set["_settle<br/>waterfall"]
     set --> rv[_repayVault]
     set --> ins[insurance.fund / coverShortfall]
     set --> dis[_disburseToTrader<br/>push, else claimTraderPayout]
@@ -83,7 +96,8 @@ flowchart LR
 
 Key invariants to keep when changing code:
 
-- Every swap (entry, exit, liquidation) is bounded by the oracle mark.
+- Every swap (entry, exit, liquidation) is bounded by the TWAP mark.
+- The protocol builds the swap calldata; callers only supply `minAmountOut`.
 - Proxy trusts only its own balance delta, never router return values.
 - Debt accrues lazily: `_catchUpEpochs` runs before any close/liquidation/trigger.
 - Nothing in the LP queue may block or reduce a trader payout.
@@ -92,33 +106,78 @@ Key invariants to keep when changing code:
 ## Adding a feature: checklist
 
 1. Change the contract in `src/`; keep `PositionManager` under the 24 KB limit (`npm run build`).
-2. Add tests next to the closest existing suite (reuse `Base.t.sol`); fuzz anything with arithmetic.
+2. Add tests next to the closest existing suite (reuse `Base.t.sol`); fuzz anything with arithmetic. Add a fork test if it touches real pools.
 3. `npm run fmt && npm test`.
 4. If the ABI changed: `npm run build`, then `cd frontend && npm run abi && npm run typecheck`.
 5. Mirror any new revert in `frontend/src/lib/errors.ts` and any settlement-rule change in `frontend/src/lib/math.ts` (the landing calculator uses it).
-6. Open a PR describing the *why*; note any spec deviation in the list below.
+6. Open a PR describing the *why*; note any spec deviation in the decisions list below.
 
 ## Deploy
 
 ```mermaid
 flowchart LR
-    A[Deploy.s.sol] --> B[Wire contracts]
+    A[Deploy.s.sol] --> B[Oracle + router + vault + wiring]
     B --> C[Ownable2Step → governance]
     C --> D{small MVP vault?}
     D -- yes --> E[ConfigureMVP.s.sol]
-    D -- no --> F[Set asset caps / routers / tiers]
-    E --> G[Run keeper + deploy frontend]
+    D -- no --> F[Set asset caps / tiers]
+    E --> G[Start keeper: records TWAP]
     F --> G
+    G --> H[Trading opens after 10 min warm-up]
 ```
 
 See the [MVP launch checklist](frontend/README.md#mvp-launch-checklist-100-vault-510-trades) for the full step list.
 
+## Testing the UI on a local Arc mainnet fork
+
+```bash
+npm run fork                 # anvil fork + deploy + seed $100 vault + warm TWAP + keeper; leave it running
+cd frontend && npm run dev   # http://localhost:3000/app/trade, configured for the fork automatically
+npm run fork:move -- ETH -8  # (repo root) push the real ETH/USDC pool down 8% by trading against it
+npm run fork:warp -- 600     # fast-forward 10 minutes with TWAP observations; the keeper then liquidates
+```
+
+`npm run fork` writes `frontend/.env.development.local` (used by `next dev` only, never by production builds), starts
+the keeper (`.fork/keeper.log`) and prints funded anvil test wallets. Add the network to your wallet (RPC
+`http://127.0.0.1:8545`, chain ID 5042, currency USDC) and import the printed trader key, or pass
+`TEST_WALLET=0xYourAddress` to fund your own address. `frontend/e2e/fork-smoke.mjs` drives the same flow in a
+headless browser (open, close in profit, keeper liquidation, BTC open).
+
+**Why a USDC shim.** Arc's USDC (`0x3600…`) moves value through native precompiles (`0x1800…00` for transfers,
+`0x1800…01` for the Circle blocklist, which WETH also consults) that anvil and forge do not have, so on a plain fork
+every USDC and WETH transfer reverts. The fork tooling installs `script/fork/UsdcForkShim.sol` as the USDC proxy's
+implementation: an ordinary ERC-20 whose balances start from each account's real native balance, so the Uniswap
+PoolManager keeps its real USDC. It is never deployed outside a fork.
+
+## Price oracle: Uniswap v4 TWAP
+
+Uniswap v4 pools keep no price history, so `UniV4TwapOracle` keeps it: a 128-slot ring buffer of tick observations
+per asset, integrated like the v3 oracle (each observation's tick holds until the next one). Prices are the
+arithmetic-mean tick over `twapWindow` (600 s), converted to USD per whole token with USDC = $1.
+
+- **Who records.** Only whitelisted recorders (the keeper). With permissionless recording, anyone could push the
+  pool, record and swap back in one transaction for a few dollars of fees, and walk the TWAP anywhere.
+- **Sandwich guard.** The recorder passes the tick it saw at the end of the previous block. A sample whose live tick
+  deviates by more than `maxRecordDeviation` (100 ticks, ~1%) is rejected, so sandwiching the recorder's own
+  transaction can move a sample by at most ~1%.
+- **Clamp.** Each observation moves at most `maxTickDelta` (500 ticks, ~5%) from the previous one, bounding a bad
+  sample or a compromised recorder. Genuine moves are followed within a few observations.
+- **Liveness.** `getPrice` reverts while the series is younger than the window (`TwapNotReady`) or when the newest
+  observation is older than `maxStaleness` (90 s, `TwapStale`). A gap longer than `maxObservationGap` (300 s)
+  restarts the series instead of extrapolating across a keeper outage, so after an outage nothing can be priced for
+  10 minutes. Positions cannot be liquidated while the oracle is stale: keepers are critical infrastructure.
+
+Every risk decision (entry check, exit floors, liquidation, epoch, stop-loss / take-profit) uses the TWAP. The
+current pool price (`spotPrice`) is exposed for display only.
+
 ## Implementation decisions beyond / deviating from the spec
 
-1. **Every exit swap is bounded by the oracle, including the trader's own close.** If only `liquidate()` were
-   bounded, a trader could close into a pool they had manipulated themselves. The swap output would come out low,
-   the shortfall would land on LP principal, and the trader would pocket the difference through the pool. For the
-   same reason, `openPosition` rejects any fill worse than `maxEntrySlippageBps` against the oracle.
+1. **Every exit swap is bounded by the TWAP, including the trader's own close.** The swap must return at least
+   `max(minAmountOut, mark × (1 − maxSlippage))` with the mark at the TWAP. If only `liquidate()` were bounded, a
+   trader could close into a pool they had manipulated themselves and push the shortfall onto LP principal. For the
+   same reason, `openPosition` rejects any fill worth less than `notional × (1 − maxEntrySlippageBps)` at the TWAP.
+   Consequence: when the pool trades more than the allowed slippage below the TWAP (a fast crash, or a dump),
+   exits revert until the pool recovers or the TWAP catches up.
 2. **The proxy measures its own balance changes.** It does not rely on what the router reports. Router calldata
    that sends the proceeds to a different recipient therefore fails the `minOut` check.
 3. **Rollover debt is charged up front for each epoch and accrues lazily.** If keepers are late, `closePosition`,
@@ -129,15 +188,16 @@ See the [MVP launch checklist](frontend/README.md#mvp-launch-checklist-100-vault
    avoid the liquidation penalty.
 5. **`addMargin` repays vault principal directly.** It lowers B, which reduces both the liquidation threshold and
    the base for rollover fees. M₀ grows by the same amount, so the trader gets it back before the profit split.
-6. **The Pyth fee is paid without any payable function.** On Arc the native balance and the `0x3600` ERC-20
-   balance are the same USDC. `PositionManager` therefore takes the fee from the caller as an ERC-20 transfer to
-   `OracleVerifier`, which then pays Pyth in native units.
+6. **No oracle fees.** The TWAP is read from storage; there is no per-transaction price update to pay for. The
+   keeper pays gas for recording.
 7. **There is no "claim to another address" path.** With one, a trader on the Circle blocklist could route
    deferred payouts to a clean address.
-8. **Swap instructions are explicit `{router, minAmountOut, data}` structs** rather than an opaque `bytes swapData`.
-9. **Uniswap v4 / UniversalRouter goes through a whitelisted adapter.** The proxy grants a plain exact ERC-20
-    approval and revokes it after the swap. UniversalRouter pulls tokens through Permit2, so it needs a small
-    adapter that pulls with `transferFrom` and calls Permit2 itself.
+8. **The protocol builds every swap itself.** Callers pass only `minAmountOut`; `PositionManager` encodes the
+   `V4SwapRouter.swapExactIn` call on the asset's pool (the oracle's pool key) with the position's proxy as recipient.
+   This removes arbitrary router calldata and the old race where the UI had to predict the next proxy address.
+9. **Our own v4 router instead of UniversalRouter.** The proxy grants a plain exact ERC-20 approval and revokes it
+    after the swap; `V4SwapRouter` pulls with `transferFrom` and settles with the PoolManager, so no Permit2. Only
+    the current router is whitelisted: `setSwapRouter` removes the previous one.
 10. **USDC is enforced at deployment.** The constructor and initializer require `0x3600…0000` whenever the chain
     ID is 5042 or 5042002, and they also check that the token has 6 decimals.
 11. **The LP vault applies a virtual-share offset of 6** against first-depositor inflation attacks, so `spUSDC`
@@ -174,9 +234,16 @@ Every parameter is owner-configurable within bounds (`setQueueParams`, `setBonus
 
 ## Known gaps before audit
 
-- `OracleVerifier` integrates Pyth only. Chainlink fallback is not implemented, and USDC is assumed to equal $1.
-- No Uniswap v4 adapter is included yet (see decision 9).
+- **The TWAP trusts its recorders.** Recording is permissioned (see the oracle section). A malicious or compromised
+  recorder can bias the TWAP by up to `maxTickDelta` per observation, and if every recorder stops, the protocol
+  stops pricing. The trust-minimised alternative is a v4 pool with an oracle hook, which needs its own liquidity.
+- **Thin pools.** At the time of writing the WETH/USDC pool holds about $15k and cirBTC/USDC about $8k. That is fine
+  for $5–$10 positions, but a few thousand dollars moves either price by several percent, and the TWAP only delays
+  a sustained manipulation (10 minutes), it does not prevent it. Keep exposure caps far below pool depth.
+- USDC is assumed to equal $1. There is no external oracle cross-check.
 - `executeTrigger` lets the trader or an operator raise `trailingStopPrice`. There is no on-chain high-water tracking.
-- The tests use a constant-price router. No fork tests have been run against real Arc pools or MetaMorpho.
-- The solvency-gate bound assumes keepers liquidate promptly. A position left below its threshold can lose more than the bound predicts.
-- New allocations are blocked by *all* pending requests, not just matured ones. This is more conservative than the spec.
+- MetaMorpho integration is kept but is not covered by the fork tests (the default deployment uses no Morpho vault).
+- The solvency-gate bound assumes keepers liquidate promptly. A position left below its threshold can lose more
+  than the bound predicts.
+- New allocations are blocked by *all* pending requests, not just matured ones. This is more conservative than
+  the spec.

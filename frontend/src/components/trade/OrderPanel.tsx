@@ -12,14 +12,14 @@ import { approveIfNeeded, useUsdcBalance } from "@/hooks/useUsdc";
 import { arc, CONTRACTS, TIERS, TRADING_CONFIGURED, USDC, type Asset } from "@/lib/config";
 import { parseUsdc, pct, price, toUsdc, usd } from "@/lib/format";
 import { epochFee } from "@/lib/math";
-import { fetchPriceUpdate } from "@/lib/pyth";
-import { prepareOpen, pythFeeUsdc, tokensForUsdc } from "@/lib/trade";
-import { quoteExactInputSingle } from "@/lib/uniswap";
+import { prepareOpen, tokensForUsdc } from "@/lib/trade";
+import { quoteExactIn } from "@/lib/uniswap";
 
 const SLIPPAGES = [30, 50, 100] as const;
 const PRESETS = ["5", "10"];
 
-export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint }) {
+/** `price18` is the 10-minute TWAP (null while the oracle warms up); entries are checked against it on-chain. */
+export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint | null }) {
   const { isConnected } = useAccount();
   const client = usePublicClient();
   const { data: proto } = useProtocol();
@@ -47,7 +47,7 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
   const { data: quote } = useQuery({
     queryKey: ["quote-open", asset.address, debouncedNotional.toString()],
     enabled: !!client && debouncedNotional > 0n && TRADING_CONFIGURED,
-    queryFn: () => quoteExactInputSingle(client!, { tokenIn: USDC, tokenOut: asset.address, fee: asset.fee, amountIn: debouncedNotional }),
+    queryFn: () => quoteExactIn(client!, { tokenIn: USDC, tokenOut: asset.address, spot: asset.address, amountIn: debouncedNotional }),
     refetchInterval: 15_000,
   });
   const tokensOut = quote ?? oracleTokens;
@@ -64,7 +64,7 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
   // Pre-flight checks mirroring the contract's revert conditions.
   let problem: string | null = null;
   if (!TRADING_CONFIGURED) problem = "Trading is not configured.";
-  else if (asset.address === "0x0000000000000000000000000000000000000000") problem = "This market has no token address configured.";
+  else if (!price18) problem = "The price oracle is warming up (it needs 10 minutes of pool history). Try again shortly.";
   else if (proto?.pm.paused) problem = "New positions are paused.";
   else if (proto && !proto.pm.assets[asset.address.toLowerCase()]?.enabled) problem = "This market is not enabled yet.";
   else if (proto && !proto.pm.tiers[tier]?.enabled) problem = `${tier}x is disabled.`;
@@ -77,24 +77,26 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
     problem = `${asset.symbol} is near its open-interest cap: max size ${usd(exposureHeadroom(proto, asset.address))} right now.`;
   else if (balance !== undefined && margin > balance) problem = "Not enough USDC in your wallet.";
   else if (impactBps !== null && proto && impactBps > proto.pm.maxEntrySlippageBps)
-    problem = `Pool price is ${pct(impactBps, 2)} worse than the oracle (max ${pct(proto.pm.maxEntrySlippageBps)}). Try a smaller size.`;
+    problem = `The pool would fill ${pct(impactBps, 2)} worse than the 10-minute average price (max ${pct(proto.pm.maxEntrySlippageBps)}). Try a smaller size or wait for the pool to settle.`;
 
   async function submit() {
     if (!walletClient || !publicClient) return;
     await run(`${tier}x ${asset.symbol} position opened`, [
       {
         title: "Approve USDC",
-        send: async () => {
-          const { updateData } = await fetchPriceUpdate([asset.pythId]);
-          const fee = await pythFeeUsdc(publicClient, updateData);
-          return approveIfNeeded(publicClient, walletClient, CONTRACTS.positionManager, margin + fee);
-        },
+        send: () => approveIfNeeded(publicClient, walletClient, CONTRACTS.positionManager, margin),
       },
       {
         title: `Open ${tier}x ${asset.symbol}`,
-        // Price data is fetched at the last moment: the oracle rejects prices older than 5 seconds.
         send: async () => {
-          const prep = await prepareOpen(publicClient, { asset, tier, margin, autoRollover: autoRoll, slippageBps: slippage });
+          const prep = await prepareOpen(publicClient, {
+            asset,
+            tier,
+            margin,
+            autoRollover: autoRoll,
+            slippageBps: slippage,
+            twap18: price18 ?? null,
+          });
           return walletClient.writeContract({
             address: CONTRACTS.positionManager,
             abi: pmAbi,
@@ -185,7 +187,7 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
         </button>
       )}
       <p className="text-center text-xs text-muted">
-        Two wallet confirmations: approve USDC, then open. Confirm the second one quickly, because prices expire after 5 seconds.
+        Two wallet confirmations: approve USDC, then open. Your fill is checked against the 10-minute Uniswap average price.
       </p>
     </div>
   );

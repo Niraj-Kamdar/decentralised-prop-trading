@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
-import { txUrl } from "@/lib/config";
+import { HAS_EXPLORER, txUrl } from "@/lib/config";
 
 type Toast = { id: number; kind: "info" | "success" | "error"; title: string; body?: string; hash?: string };
 type Ctx = { push: (t: Omit<Toast, "id">) => number; update: (id: number, t: Partial<Toast>) => void };
@@ -62,7 +62,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               </button>
             </div>
             {t.body && <p className="mt-1 text-muted">{t.body}</p>}
-            {t.hash && (
+            {t.hash && HAS_EXPLORER && (
               <a href={txUrl(t.hash)} target="_blank" rel="noreferrer" className="mt-1 inline-block text-accent hover:underline">
                 View transaction ↗
               </a>

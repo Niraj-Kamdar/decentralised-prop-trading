@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "./ConnectButton";
 import { Logo } from "./Logo";
-import { NETWORK, PROTOCOL_CONFIGURED, TRADING_CONFIGURED } from "@/lib/config";
+import { NETWORK_LABEL, PROTOCOL_CONFIGURED } from "@/lib/config";
 import { useProtocol } from "@/hooks/useProtocol";
 
 const LINKS = [
@@ -50,7 +50,7 @@ export function AppNav() {
           <div className="flex items-center gap-3">
             <span className="hidden items-center gap-1.5 rounded border border-line px-2 py-1 text-xs text-fg2 md:inline-flex">
               <span className="h-1.5 w-1.5 rounded-full bg-up" aria-hidden />
-              Arc {NETWORK === "testnet" ? "testnet" : "mainnet"}
+              {NETWORK_LABEL}
             </span>
             <ConnectButton />
           </div>
@@ -68,8 +68,7 @@ export function AppNav() {
           ))}
         </nav>
       </header>
-      {!PROTOCOL_CONFIGURED && <Banner>Contract addresses aren't configured. Set the NEXT_PUBLIC_* variables (see frontend/.env.example).</Banner>}
-      {PROTOCOL_CONFIGURED && !TRADING_CONFIGURED && <Banner>No Uniswap router is configured, so trading is off. Set NEXT_PUBLIC_SWAP_ROUTER.</Banner>}
+      {!PROTOCOL_CONFIGURED && <Banner>Contract addresses aren&apos;t configured. Set the NEXT_PUBLIC_* variables (see frontend/.env.example).</Banner>}
       {data?.pm.paused && <Banner>New positions are paused. You can still close positions and manage liquidity.</Banner>}
       <div className="border-b border-line bg-panel2 px-4 py-1.5 text-center text-xs text-muted">
         Early release. Real funds, unaudited contracts. Trade small.

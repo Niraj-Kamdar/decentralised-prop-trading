@@ -5,12 +5,13 @@ Next.js app for the protocol in this repo:
 - **`/`**: landing page for traders and LPs. Live vault stats read from chain, an interactive profit/loss calculator
   that uses the contract's settlement rules, FAQ, and the **waitlist** for full launch.
 - **`/app`**: dashboard with wallet balance, trading PnL, LP value and earnings, pending payouts and protocol stats.
-- **`/app/trade`**: spot trade terminal (Uniswap). Pyth candle chart with liquidation lines, 5x/10x order ticket with
-  pre-flight checks that mirror the contract's reverts, and a positions table with close, add margin, TP/SL,
-  auto-roll and history.
+- **`/app/trade`**: ETH and BTC spot terminal (Uniswap v4). Live chart of the pool price against the 10-minute TWAP
+  with liquidation lines, 5x/10x order ticket with pre-flight checks that mirror the contract's reverts and a v4
+  Quoter estimate, and a positions table with close, add margin, TP/SL, auto-roll and history.
 - **`/app/earn`**: LP vault. Deposit, the 30-day ERC-7540 exit queue (request, cancel, process, claim), stress-bonus
   deposits and tickets, utilisation and insurance.
-- **`npm run keeper`**: a bot that liquidates, closes expired epochs, executes TP/SL and processes the LP queue.
+- **`npm run keeper`**: a bot that records the TWAP, liquidates, closes expired epochs, executes TP/SL and processes
+  the LP queue. The oracle goes stale without it.
 
 Stack: Next.js 15 (App Router), wagmi 2 and viem 2, TanStack Query, Tailwind 3, lightweight-charts, and Postgres
 (`postgres`) for the waitlist.
@@ -19,11 +20,14 @@ Stack: Next.js 15 (App Router), wagmi 2 and viem 2, TanStack Query, Tailwind 3, 
 
 ```bash
 cd frontend
-cp .env.example .env.local    # fill in addresses, assets, PYTH_API_KEY, DATABASE_URL
+cp .env.example .env.local    # fill in contract addresses and DATABASE_URL
 npm install
 npm run dev                   # http://localhost:3000
 npm run typecheck && npm run build
 ```
+
+To run against a local fork of Arc mainnet instead, start `npm run fork` in the repo root first: it writes
+`.env.development.local` for `next dev` (see [DEVELOPMENT.md](../DEVELOPMENT.md)).
 
 ABIs in `src/abi/` are generated from the Foundry build: run `npm run build` in the repo root, then `npm run abi` here.
 
@@ -33,26 +37,25 @@ Everything is in `.env.example`. The essentials:
 
 | Variable | Notes |
 |---|---|
-| `NEXT_PUBLIC_NETWORK` | `mainnet` (Arc, 5042) or `testnet` (5042002). Override `NEXT_PUBLIC_RPC_URL` / `NEXT_PUBLIC_EXPLORER_URL` if needed. |
-| `NEXT_PUBLIC_POSITION_MANAGER`, `_LP_VAULT`, `_ORACLE`, `_INSURANCE` | Printed by `script/Deploy.s.sol`. |
-| `NEXT_PUBLIC_SWAP_ROUTER` | Uniswap v3 `SwapRouter02` (or the original `SwapRouter` with `NEXT_PUBLIC_SWAP_ROUTER_KIND=router`). It **must** be whitelisted via `PositionManager.setRouter`. |
-| `NEXT_PUBLIC_QUOTER` | Uniswap `QuoterV2`. Optional, but it sizes `minAmountOut` and warns about pool/oracle deviation before you sign. |
-| `NEXT_PUBLIC_ASSETS` | JSON list of `{symbol, address, decimals, pythId, fee, chartSymbol}`. `fee` is the USDC/token pool fee tier. |
-| `PYTH_API_KEY` | **Required.** Pyth Hermes needs an API key since the 2026 Pyth Core upgrade. Requests are proxied through `/api/pyth`, so the key never reaches the browser. |
+| `NEXT_PUBLIC_NETWORK` | `mainnet` (Arc, 5042), `fork` (local anvil fork, 5042) or `testnet` (5042002). Override `NEXT_PUBLIC_RPC_URL` / `NEXT_PUBLIC_EXPLORER_URL` if needed. |
+| `NEXT_PUBLIC_POSITION_MANAGER`, `_LP_VAULT`, `_ORACLE`, `_INSURANCE` | Printed by `script/Deploy.s.sol`. The oracle is `UniV4TwapOracle`. |
+| `NEXT_PUBLIC_V4_QUOTER`, `_WETH`, `_CIRBTC` | Optional; default to the Arc mainnet Uniswap V4Quoter, WETH and cirBTC. |
 | `DATABASE_URL` | Postgres for the waitlist (Neon, Supabase, Vercel Postgres...). The table is created automatically (`db/schema.sql`). Without it, signups go to `.data/waitlist.json`, which is for local dev only. |
 | `WAITLIST_ADMIN_TOKEN` | Enables CSV export: `curl -H "Authorization: Bearer $TOKEN" https://<host>/api/waitlist/export`. |
 
 ### How a trade is built
 
-The swap is executed by the position's own `TraderProxy`, so the app encodes Uniswap `exactInputSingle` calldata
-with the proxy as recipient. For opens, that is `predictProxyAddress(positionCount + 1)`. If someone else opens in
-the same block, the proxy's balance check fails and the transaction simply reverts. Exits set `minAmountOut` at or
-above the contract's oracle bound (`mark × (1 − maxExitSlippage)`), computed from the same Pyth update that is
-submitted with the transaction. The Pyth fee is pulled in ERC-20 USDC, so the approval covers margin plus fee.
+The app sends only `minAmountOut`: `PositionManager` builds the Uniswap v4 swap itself on the asset's pool and runs it
+through the position's own `TraderProxy`. For opens, `minAmountOut` comes from a fresh V4Quoter quote minus your
+slippage. On-chain, the fill must also be worth at least `notional × (1 − maxEntrySlippage)` at the 10-minute TWAP.
+For closes, the contract enforces `max(minAmountOut, mark × (1 − maxExitSlippage))` with the mark at the TWAP. The
+close dialog warns, before you sign, when the pool is below that floor. There is no oracle fee and no rush to sign:
+prices live on-chain.
 
 ## MVP launch checklist ($100 vault, $5–$10 trades)
 
-1. **Deploy** with `script/Deploy.s.sol` (needs a MetaMorpho vault, Pyth, and the Uniswap router on Arc).
+1. **Deploy** with `script/Deploy.s.sol` (`GOVERNANCE`, `GUARDIAN`, `RECORDERS` = keeper address). It deploys the
+   oracle, the v4 router and a single LP vault, and enables WETH and cirBTC on their Arc v4 pools.
 2. **Retune for a small vault.** The defaults ($500 minimum size, $5 keeper bounty, 35% per-asset cap, $1,000 minimum
    bonus deposit) make a $100 vault unusable. As the owner, run:
    ```bash
@@ -64,10 +67,11 @@ submitted with the transaction. The Pyth fee is pulled in ERC-20 USDC, so the ap
    covers the resulting flows.
 3. **Seed the vault** by depositing $100 on `/app/earn`. Optionally seed the insurance pool with
    `InsuranceReserve.donate`.
-4. **Run the keeper**: `KEEPER_PRIVATE_KEY=0x... npm run keeper` (give it a few USDC for gas and Pyth fees). Without
-   a keeper, nobody liquidates losing positions and LP money is at risk.
-5. **Deploy the site** (e.g. Vercel, with the root directory set to `frontend/`) and set `DATABASE_URL`,
-   `PYTH_API_KEY` and `WAITLIST_ADMIN_TOKEN`.
+4. **Run the keeper**: `KEEPER_PRIVATE_KEY=0x... npm run keeper` (give it a few USDC for gas). It must be a recorder
+   on the oracle. Trading opens 10 minutes after it starts recording. Without a keeper, the TWAP goes stale,
+   nothing can trade, and nobody liquidates losing positions.
+5. **Deploy the site** (e.g. Vercel, with the root directory set to `frontend/`) and set the contract addresses,
+   `DATABASE_URL` and `WAITLIST_ADMIN_TOKEN`.
 
 What a $100 vault can hold: at most 85% can be lent, so about $85 of borrowing in total. That covers, for example,
 one $5 × 10x ($45 borrowed) plus one $10 × 5x ($40 borrowed). A second $5 × 10x has to wait until one closes. The
@@ -75,11 +79,11 @@ order ticket shows the remaining capacity and explains the limit before the user
 
 ## Known limitations
 
-- **5-second oracle staleness.** `OracleVerifier` caps `maxStaleness` at 5s (a constant). The app fetches the price
-  update at the last moment, but a user who takes longer than about 4s to confirm in their wallet gets `StalePrice`,
-  and the UI asks them to retry. Raising `MAX_STALENESS_CAP` to about 30–60s would remove most of this friction;
-  the oracle-bounded swap checks still protect LPs.
+- **Oracle warm-up.** After deployment, or after a keeper outage longer than 5 minutes, prices are unavailable for
+  10 minutes while the TWAP refills. The UI shows "warming up" and blocks trading until then.
+- **TWAP lag.** Entries, exits and liquidations follow the 10-minute average, not the live pool. In a fast move the
+  pool can sit outside the allowed slippage band and closes revert until the TWAP catches up.
+- **Chart history.** The chart is built from on-chain samples taken while the page is open; there is no backfill.
 - **No indexer.** Positions, requests and tickets are found by scanning recent ids with Multicall3 (the last 2,000
   of each). That is fine for the MVP; add an indexer on `PositionOpened` / `RedeemRequest` events before volume grows.
-- **Uniswap v3 only.** Direct `exactInputSingle` routes need a USDC/token pool at the configured fee tier. v4 /
-  UniversalRouter needs the adapter noted in [DEVELOPMENT.md](../DEVELOPMENT.md).
+- **One pool per market.** Each asset trades on the single v4 pool configured in the oracle; there is no routing.

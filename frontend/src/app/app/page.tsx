@@ -27,7 +27,7 @@ export default function Dashboard() {
   const open = positions?.filter((p) => p.status === "OPEN") ?? [];
   const views = open.map((p) => {
     const a = assetByAddress(p.spotToken);
-    return { p, a, v: positionView(p, a?.decimals ?? 18, a ? get(a.pythId)?.price18 : undefined, tierParams(proto, p.tier)) };
+    return { p, a, v: positionView(p, a?.decimals ?? 18, a ? (get(a.address)?.twap18 ?? undefined) : undefined, tierParams(proto, p.tier)) };
   });
   const totalMargin = open.reduce((s, p) => s + toUsdc(p.userMargin), 0);
   const totalPnl = views.reduce((s, x) => s + (x.v.pnl ?? 0), 0);
