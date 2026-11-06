@@ -1,0 +1,15 @@
+{
+  "name": "decentralised-prop-trading",
+  "private": true,
+  "scripts": {
+    "forge": "node node_modules/@foundry-rs/forge/bin.mjs",
+    "build": "node node_modules/@foundry-rs/forge/bin.mjs build --sizes",
+    "test": "node node_modules/@foundry-rs/forge/bin.mjs test -vv",
+    "fmt": "node node_modules/@foundry-rs/forge/bin.mjs fmt"
+  },
+  "devDependencies": {
+    "@foundry-rs/forge": "1.7.1",
+    "@openzeppelin/contracts": "5.4.0",
+    "@openzeppelin/contracts-upgradeable": "5.4.0"
+  }
+}
