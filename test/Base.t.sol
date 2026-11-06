@@ -53,13 +53,7 @@ abstract contract BaseTest is Test {
             )
         );
         insurance = new InsuranceReserve(IERC20(address(usdc)), owner);
-        pm = new PositionManager(
-            IERC20(address(usdc)),
-            ILPVault(address(vault)),
-            IInsuranceReserve(address(insurance)),
-            IOracle(address(oracle)),
-            owner
-        );
+        pm = _deployPM(IOracle(address(oracle)));
         vault.setPositionManager(address(pm));
         insurance.setPositionManager(address(pm));
         pm.setAsset(address(cirBTC), true, 3_500, 2_000);
@@ -88,6 +82,27 @@ abstract contract BaseTest is Test {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    function _deployPM(IOracle o) internal returns (PositionManager) {
+        PositionManager impl = new PositionManager();
+        return PositionManager(
+            address(
+                new ERC1967Proxy(
+                    address(impl),
+                    abi.encodeCall(
+                        PositionManager.initialize,
+                        (
+                            IERC20(address(usdc)),
+                            ILPVault(address(vault)),
+                            IInsuranceReserve(address(insurance)),
+                            o,
+                            owner
+                        )
+                    )
+                )
+            )
+        );
+    }
 
     function _setPrice(address token, uint256 usd) internal {
         oracle.setPrice(token, usd * 1e18);

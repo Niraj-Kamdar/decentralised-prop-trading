@@ -7,9 +7,11 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
-import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import {TraderProxy} from "./TraderProxy.sol";
 import {ArcConstants} from "./libraries/ArcConstants.sol";
@@ -30,7 +32,15 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 ///         lazy 8% APR rollover debt, oracle-gated liquidations, and the settlement / bad-debt waterfall.
 ///         Spot is bought and sold on the asset's Uniswap v4 pool and marked at that pool's 10-minute TWAP.
 /// @dev No function is payable and there is no receive(): native USDC (18-dec msg.value) is always rejected.
-contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, ReentrancyGuard {
+contract PositionManager is
+    IRouterRegistry,
+    IRiskView,
+    Initializable,
+    Ownable2StepUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    UUPSUpgradeable
+{
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
 
@@ -104,14 +114,14 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     }
 
     // ---------------------------------------------------------------------
-    // Immutables & storage
+    // Storage
     // ---------------------------------------------------------------------
 
-    IERC20 public immutable usdc;
-    ILPVault public immutable lpVault;
-    IInsuranceReserve public immutable insurance;
-    IOracle public immutable oracle;
-    address public immutable proxyImplementation;
+    IERC20 public usdc;
+    ILPVault public lpVault;
+    IInsuranceReserve public insurance;
+    IOracle public oracle;
+    address public proxyImplementation;
 
     address public guardian;
     /// @notice The V4SwapRouter every position trades through; the only router TraderProxy clones may call.
@@ -137,13 +147,13 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     mapping(address trader => uint256) public claimableUSDC;
     uint256 public totalClaimable;
 
-    uint256 public rolloverAprBps = 800;
-    uint256 public lpRolloverShareBps = 8_000;
-    uint256 public minNotional = 500e6;
-    uint256 public keeperBounty = 5e6;
-    uint256 public maxEntrySlippageBps = 100;
-    uint256 public maxExitSlippageBps = 100;
-    uint256 public maxLiqSlippageBps = 200;
+    uint256 public rolloverAprBps;
+    uint256 public lpRolloverShareBps;
+    uint256 public minNotional;
+    uint256 public keeperBounty;
+    uint256 public maxEntrySlippageBps;
+    uint256 public maxExitSlippageBps;
+    uint256 public maxLiqSlippageBps;
 
     // ---------------------------------------------------------------------
     // Events
@@ -177,6 +187,7 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     event TierSet(uint8 indexed tier, TierConfig config);
     event AssetSet(address indexed token, AssetConfig config);
     event SwapRouterSet(address indexed router);
+    event OracleSet(address oracle);
     event GuardianSet(address indexed guardian);
     event RiskParamsSet(
         uint256 rolloverAprBps,
@@ -211,24 +222,47 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     error NothingToClaim();
 
     // ---------------------------------------------------------------------
-    // Construction
+    // Construction & Initialization
     // ---------------------------------------------------------------------
 
-    constructor(IERC20 usdc_, ILPVault lpVault_, IInsuranceReserve insurance_, IOracle oracle_, address owner_)
-        Ownable(owner_)
-    {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        IERC20 usdc_,
+        ILPVault lpVault_,
+        IInsuranceReserve insurance_,
+        IOracle oracle_,
+        address owner_
+    ) external initializer {
         if (
             address(usdc_) == address(0) || address(lpVault_) == address(0) || address(insurance_) == address(0)
-                || address(oracle_) == address(0)
+                || address(oracle_) == address(0) || owner_ == address(0)
         ) revert ZeroAddress();
         if (ArcConstants.isArc() && address(usdc_) != ArcConstants.USDC) revert InvalidAsset();
         if (IERC20Metadata(address(usdc_)).decimals() != ArcConstants.USDC_DECIMALS) revert InvalidAsset();
+
+        __Ownable_init(owner_);
+        __Ownable2Step_init();
+        __Pausable_init();
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
 
         usdc = usdc_;
         lpVault = lpVault_;
         insurance = insurance_;
         oracle = oracle_;
         proxyImplementation = address(new TraderProxy(address(this)));
+
+        rolloverAprBps = 800;
+        lpRolloverShareBps = 8_000;
+        minNotional = 500e6;
+        keeperBounty = 5e6;
+        maxEntrySlippageBps = 100;
+        maxExitSlippageBps = 100;
+        maxLiqSlippageBps = 200;
 
         _setTier(5, TierConfig({enabled: true, maintenanceBps: 400, lpProfitBps: 800, treasuryProfitBps: 200}));
         _setTier(10, TierConfig({enabled: true, maintenanceBps: 200, lpProfitBps: 1_200, treasuryProfitBps: 300}));
@@ -570,6 +604,12 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
         );
     }
 
+    function setOracle(IOracle oracle_) external onlyOwner {
+        if (address(oracle_) == address(0)) revert ZeroAddress();
+        oracle = oracle_;
+        emit OracleSet(address(oracle_));
+    }
+
     function setGuardian(address guardian_) external onlyOwner {
         guardian = guardian_;
         emit GuardianSet(guardian_);
@@ -584,6 +624,8 @@ contract PositionManager is IRouterRegistry, IRiskView, Ownable2Step, Pausable, 
     function unpause() external onlyOwner {
         _unpause();
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     // ---------------------------------------------------------------------
     // Internals

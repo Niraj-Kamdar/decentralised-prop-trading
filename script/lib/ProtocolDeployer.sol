@@ -49,8 +49,23 @@ library ProtocolDeployer {
             address(new ERC1967Proxy(address(impl), abi.encodeCall(LPVault.initialize, (usdc, morphoVault, owner))))
         );
         d.insurance = new InsuranceReserve(usdc, owner);
-        d.pm = new PositionManager(
-            usdc, ILPVault(address(d.vault)), IInsuranceReserve(address(d.insurance)), IOracle(address(d.oracle)), owner
+        PositionManager pmImpl = new PositionManager();
+        d.pm = PositionManager(
+            address(
+                new ERC1967Proxy(
+                    address(pmImpl),
+                    abi.encodeCall(
+                        PositionManager.initialize,
+                        (
+                            usdc,
+                            ILPVault(address(d.vault)),
+                            IInsuranceReserve(address(d.insurance)),
+                            IOracle(address(d.oracle)),
+                            owner
+                        )
+                    )
+                )
+            )
         );
 
         d.vault.setPositionManager(address(d.pm));
