@@ -1,97 +1,230 @@
-# Spot-Funded Prop Trading on Arc
+# Fulcrum — Spot-Funded Prop Trading on Arc
 
-Leveraged spot trading (5x / 10x) on Arc. Each position gets its own isolated EIP-1167 `TraderProxy`. The trader's
-USDC margin is paired with principal borrowed from an ERC-4626 LP vault, whose idle funds earn yield in MetaMorpho.
-The protocol charges no entry or exit fees, and the first 7-day epoch is free. Later epochs roll over at 8% APR.
+**Trade with 5x or 10x leverage using a pool of LP money. No entry fee. No exit fee. First week free.**
 
-## Layout
+- **Traders** put in USDC margin and trade spot crypto with more buying power.
+- **LPs** deposit USDC into a vault and earn yield from trader fees and profit share.
+- **Everything is on-chain.** Each trade lives in its own isolated smart wallet.
 
-| Contract | Role |
-|---|---|
-| `src/PositionManager.sol` | Entry point for traders and keepers: opens positions, rolls epochs, liquidates and runs the settlement waterfall |
-| `src/LPVault.sol` | `spUSDC` ERC-4626 vault (UUPS) with ERC-7540 async redemptions: Morpho buffer, lending to proxies, 12h linear profit vesting, 85% utilization cap, 30-day exit queue, stress bonus pot, solvency gate |
-| `src/TraderProxy.sol` | Per-position custody clone that swaps only through whitelisted routers and checks its own balance after each swap |
-| `src/InsuranceReserve.sol` | First-loss bucket and ops-treasury bucket |
-| `src/OracleVerifier.sol` | Pyth pull oracle wrapper: data must be at most 5s old with confidence within 50 bps; prices normalised to 1e18 |
-| `script/Deploy.s.sol` | Arc deployment and wiring, then hand-off to governance through Ownable2Step |
-| `script/ConfigureMVP.s.sol` | Retunes a deployed protocol for a ~$100 vault with $5–$10 positions |
-| `frontend/` | Landing page with waitlist, dashboard, trade terminal, LP vault UI and keeper bot ([frontend/README.md](frontend/README.md)) |
+> Build, test and contribution details: [DEVELOPMENT.md](DEVELOPMENT.md)
 
-## Build & test
+---
 
-```bash
-npm install                 # forge 1.7.1 + OpenZeppelin 5.4.0 from npm
-git submodule update --init # forge-std
-npm test                    # 72 tests incl. 512-run fuzzes and a 256x64 queue invariant suite
-npm run build               # prints contract sizes (PositionManager ~17.7 KB)
+## 1. The big picture
+
+```mermaid
+flowchart LR
+    T([Trader]) -- "margin (USDC)" --> PM[PositionManager]
+    LP([LP]) -- "deposit USDC" --> V[(LP Vault<br/>spUSDC)]
+    V -- "idle funds" --> M[MetaMorpho<br/>earns yield]
+    V -- "borrowed principal" --> PM
+    PM -- "margin + principal" --> P[TraderProxy<br/>one per position]
+    P -- "swap" --> U[Uniswap]
+    O[Pyth Oracle] -. "price check" .-> PM
+    K([Keeper bot]) -- "liquidate / roll / close" --> PM
+    PM -- "losses first" --> I[Insurance Reserve]
 ```
 
-## Implementation decisions beyond / deviating from the spec
+| Piece | One-line job |
+|---|---|
+| **PositionManager** | The brain: opens, rolls, closes, liquidates, settles |
+| **LPVault** | Holds LP money, lends it to positions, earns yield |
+| **TraderProxy** | A tiny wallet per position that holds the spot asset |
+| **OracleVerifier** | Pyth price, max 5s old — the source of truth |
+| **InsuranceReserve** | Absorbs losses before LPs do |
+| **Keeper** | Anyone running the bot; earns a bounty |
 
-1. **Every exit swap is bounded by the oracle, including the trader's own close.** If only `liquidate()` were
-   bounded, a trader could close into a pool they had manipulated themselves. The swap output would come out low,
-   the shortfall would land on LP principal, and the trader would pocket the difference through the pool. For the
-   same reason, `openPosition` rejects any fill worse than `maxEntrySlippageBps` against the oracle.
-2. **The proxy measures its own balance changes.** It does not rely on what the router reports. Router calldata
-   that sends the proceeds to a different recipient therefore fails the `minOut` check.
-3. **Rollover debt is charged up front for each epoch and accrues lazily.** If keepers are late, `closePosition`,
-   `liquidate` and `executeTrigger` first charge every epoch that has fallen due. A pure roll in `processEpoch`
-   pays no bounty, because skipping it never lets debt go unaccrued.
-4. **An expired position that is also below the liquidation threshold settles as a liquidation, not an expiry.**
-   The same applies to a triggered stop-loss below the threshold. A trader therefore cannot use a stop order to
-   avoid the liquidation penalty.
-5. **`addMargin` repays vault principal directly.** It lowers B, which reduces both the liquidation threshold and
-   the base for rollover fees. M₀ grows by the same amount, so the trader gets it back before the profit split.
-6. **The Pyth fee is paid without any payable function.** On Arc the native balance and the `0x3600` ERC-20
-   balance are the same USDC. `PositionManager` therefore takes the fee from the caller as an ERC-20 transfer to
-   `OracleVerifier`, which then pays Pyth in native units.
-7. **There is no "claim to another address" path.** With one, a trader on the Circle blocklist could route
-   deferred payouts to a clean address.
-8. **Swap instructions are explicit `{router, minAmountOut, data}` structs** rather than an opaque `bytes swapData`.
-9. **Uniswap v4 / UniversalRouter goes through a whitelisted adapter.** The proxy grants a plain exact ERC-20
-    approval and revokes it after the swap. UniversalRouter pulls tokens through Permit2, so it needs a small
-    adapter that pulls with `transferFrom` and calls Permit2 itself.
-10. **USDC is enforced at deployment.** The constructor and initializer require `0x3600…0000` whenever the chain
-    ID is 5042 or 5042002, and they also check that the token has 6 decimals.
-11. **The LP vault applies a virtual-share offset of 6** against first-depositor inflation attacks, so `spUSDC`
-    shares have 12 decimals.
+---
 
-## LP lifecycle: exit queue, stress bonus and solvency gate
+## 2. Opening a position
 
-Spec: issue #1. Deposits are synchronous; redemptions are asynchronous (ERC-7540). Traders pay nothing for any of
-this, and no part of it can block, delay or reduce a trader payout.
+Trader brings **$100**, picks **5x** → trades **$500**. The vault lends the other **$400**.
 
-1. **Request.** `requestRedeem(shares, controller, owner)` escrows the shares in a FIFO queue for `redeemCooldown`
-   (30 days). From that moment the shares **stop earning**: the payout is capped at their value when requested,
-   while losses during the wait still apply.
-2. **Stress penalty.** The pool is *stressed* when utilisation is at or above `stressUtilizationBps` (80%; the hard
-   allocation cap stays at 85%). A request made while stressed also forfeits `exitPenaltyBps` (25%) of the yield
-   earned *before* the request. It never touches principal: the payout is floored at `min(cost basis, value)`.
-3. **Fulfil.** Anyone can call `processRedemptions(n)`. Matured requests are paid FIFO, with partial fills, out of
-   `fulfilmentBudget()`, which is free liquidity minus the PositionManager's worst-case stressed LP loss (net of
-   insurance). The payout is reserved as local USDC; the controller claims with `redeem`/`withdraw`. Cancelling a
-   pending request also forfeits any queue-period gain.
-4. **Bonus pot.** Every forfeit (queue gain, stress penalty, cancel, broken ticket) goes into `bonusPot`. While
-   stressed, `depositWithBonus` locks a new deposit for `bonusDuration` (90 days) and streams the pot to it
-   (`pot / 90 days` per second, capped at 20% APR per ticket). At maturity anyone can call `claimTicket`; the bonus
-   is minted as `spUSDC`. `breakTicket` unlocks early and returns the accrued bonus to the pot. The scheme is
-   zero-sum: bonuses are only ever paid from the pot.
-5. **Solvency gate.** `PositionManager.stressedLPLoss()` bounds the LP loss if every asset dropped by its
-   `stressShockBps` (20%) and every position were liquidated at maximum slippage. Positions sit above
-   `V = B + D + mu*N`, so the loss per position is at most `B * k(asset, tier)`. The bound is exact from
-   per-(asset, tier) borrowed aggregates, with no loop over positions. It assumes keepers liquidate promptly.
-6. **Priority.** New trader allocations cannot use liquidity owed to pending requests (`AllocationBlockedByQueue`).
+```mermaid
+sequenceDiagram
+    actor T as Trader
+    participant PM as PositionManager
+    participant V as LP Vault
+    participant P as TraderProxy (new clone)
+    participant U as Uniswap
+    participant O as Oracle
 
-Every parameter is owner-configurable within bounds (`setQueueParams`, `setBonusParams`, the per-asset shock in
-`setAsset`). Existing requests and tickets keep the terms they were created with.
+    T->>PM: openPosition(margin $100, 5x, asset)
+    PM->>O: fresh price?
+    PM->>P: create clone, send $100 margin
+    PM->>V: borrow $400 for the proxy
+    V-->>P: $400
+    P->>U: swap $500 USDC → asset
+    PM->>O: did we get a fair price?
+    Note over PM,O: reverts if swap is >1% off oracle<br/>or position would already be liquidatable
+    PM-->>T: position #N open (7-day epoch)
+```
+
+---
+
+## 3. Life of a position
+
+```mermaid
+stateDiagram-v2
+    [*] --> Open: openPosition
+    Open --> Open: epoch ends → roll over (8% APR)
+    Open --> Closed: trader closes / TP / SL
+    Open --> Closed: epoch ends, no auto-roll
+    Open --> Liquidated: value ≤ threshold
+    Closed --> [*]: payout
+    Liquidated --> [*]: remainder → insurance
+```
+
+**Epochs:** each position lives in 7-day epochs. The **first is free**. After that, a rollover fee of **8% APR on the borrowed amount** is charged.
+
+**Liquidation line** — you are liquidated when:
+
+```
+position value  ≤  borrowed + rollover debt + maintenance %
+```
+
+| Tier | Borrowed | Maintenance | Rough drop to liquidation |
+|---|---|---|---|
+| 5x | 4× margin | 4% of size | ~ −16% |
+| 10x | 9× margin | 2% of size | ~ −8% |
+
+---
+
+## 4. Where does the money go? (settlement waterfall)
+
+When a position ends, the USDC from selling the spot asset is paid out **in this order**:
+
+```mermaid
+flowchart TD
+    S[Sale proceeds] --> B{Forced close?}
+    B -- yes --> K[1. Keeper bounty]
+    B -- no --> R
+    K --> R[2. Repay LP principal]
+    R --> L{Enough to repay?}
+    L -- no --> BD[Insurance covers the gap<br/>then LPs eat the rest]
+    L -- yes --> D[3. Pay rollover debt<br/>80% LPs · 20% insurance]
+    D --> Q{Liquidation?}
+    Q -- yes --> PEN[4a. Everything left → Insurance]
+    Q -- no --> PR{Profit?}
+    PR -- "no" --> TL[4b. Trader gets what's left]
+    PR -- "yes" --> SPLIT[4c. Split the profit]
+    SPLIT --> TP[Trader keeps ~90%]
+    SPLIT --> LPC[LPs ~8–12%]
+    SPLIT --> TRE[Treasury ~2–3%]
+```
+
+**Profit split**
+
+| Tier | Trader | LPs | Treasury |
+|---|---|---|---|
+| 5x | 90% | 8% | 2% |
+| 10x | 85% | 12% | 3% |
+
+**Worked example** (5x, $100 margin, price +20%): position sells for $600 → repay $400 → $200 left → profit is $100 → trader gets **$190** back (their $100 + $90), LPs get $8, treasury $2.
+
+---
+
+## 5. LP side: deposit, earn, exit
+
+```mermaid
+flowchart LR
+    D([Deposit USDC]) --> V[(Vault)]
+    V --> S1[Idle → MetaMorpho yield]
+    V --> S2[Lent to positions<br/>max 85% utilised]
+    S2 --> Y[Rollover fees + profit share]
+    S1 --> Y
+    Y -- "12h linear vesting" --> V
+```
+
+### Exiting is a queue (ERC-7540)
+
+```mermaid
+sequenceDiagram
+    actor LP
+    participant V as Vault
+    LP->>V: requestRedeem(shares)
+    Note over V: shares stop earning<br/>30-day cooldown
+    V-->>V: processRedemptions() — FIFO, anyone can call
+    V-->>LP: claim USDC via redeem()
+```
+
+### Stress protection
+
+| When the pool is… | What happens |
+|---|---|
+| **Calm** (< 80% utilised) | Normal exits |
+| **Stressed** (≥ 80%) | Exit forfeits 25% of earned yield → goes to the **bonus pot** |
+| **Stressed** | New depositors can lock funds 90 days and share the bonus pot |
+| **Any time** | Exits only paid if the pool still survives a **−20% crash** (solvency gate) |
+
+```mermaid
+flowchart LR
+    X[Early exits<br/>forfeit yield] --> POT[(Bonus pot)]
+    POT --> N[New locked depositors<br/>up to 20% APR]
+    N -. "breaks early → returns bonus" .-> POT
+```
+
+Traders are never affected by any of this: **LP queue logic cannot block, delay, or reduce a trader payout.**
+
+---
+
+## 6. Who protects LP money?
+
+```mermaid
+flowchart TB
+    subgraph "Layer 1 — Before the trade"
+        A1[Max 85% of vault lent]
+        A2[Per-asset exposure cap]
+        A3[Whitelisted routers only]
+    end
+    subgraph "Layer 2 — During the trade"
+        B1[Pyth price ≤ 5s old]
+        B2[Keepers liquidate early<br/>at maintenance margin]
+        B3[Every swap checked<br/>against the oracle]
+    end
+    subgraph "Layer 3 — After a loss"
+        C1[Trader margin absorbs first]
+        C2[Insurance reserve]
+        C3[LP principal — last resort]
+    end
+    A1 --> B1 --> C1 --> C2 --> C3
+```
+
+**Why the oracle checks every swap:** otherwise a trader could push a pool's price, trade into it, and make LPs pay the difference. Entry, exit *and* liquidation swaps must land near the oracle price.
+
+---
+
+## 7. Keepers
+
+Anyone can run the keeper bot (`npm run keeper` in `frontend/`). It earns a bounty for:
+
+```mermaid
+flowchart LR
+    K([Keeper]) --> L[Liquidate unhealthy positions]
+    K --> E[Close or roll expired epochs]
+    K --> TR[Execute stop-loss / take-profit]
+    K --> Q[Process LP exit queue]
+```
+
+---
+
+## 8. Trust & safety at a glance
+
+- **Isolated custody** — one clone wallet per position; a bug in one cannot touch another.
+- **Balance-checked swaps** — the proxy measures what it actually received, not what the router claims.
+- **No payout redirection** — payouts only go to the trader, so a blocklisted trader can't route funds elsewhere.
+- **Always-open exits** — closing works even when the protocol is paused.
+- **Governance** — ownership moves to governance via `Ownable2Step`; parameters are bounded.
 
 ## Known gaps before audit
 
-- `OracleVerifier` integrates Pyth only. Chainlink fallback is not implemented, and USDC is assumed to equal $1.
-- No Uniswap v4 adapter is included yet (see decision 9).
-- `executeTrigger` lets the trader or an operator raise `trailingStopPrice`. There is no on-chain high-water tracking.
-- The tests use a constant-price router. No fork tests have been run against real Arc pools or MetaMorpho.
-- The solvency-gate bound assumes keepers liquidate promptly. A position left below its threshold can lose more
-  than the bound predicts.
-- New allocations are blocked by *all* pending requests, not just matured ones. This is more conservative than
-  the spec.
+- Oracle is Pyth only (no Chainlink fallback); USDC assumed = $1.
+- No Uniswap v4 adapter yet.
+- Trailing stop has no on-chain high-water tracking.
+- Tests use a constant-price router; no fork tests yet.
+- Solvency gate assumes keepers liquidate promptly.
+- Pending exit requests block *all* new allocations (more conservative than spec).
+
+---
+
+**Next:** [DEVELOPMENT.md](DEVELOPMENT.md) for setup, tests, internals and contributing · [frontend/README.md](frontend/README.md) for the app.

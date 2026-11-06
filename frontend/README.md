@@ -82,4 +82,4 @@ order ticket shows the remaining capacity and explains the limit before the user
 - **No indexer.** Positions, requests and tickets are found by scanning recent ids with Multicall3 (the last 2,000
   of each). That is fine for the MVP; add an indexer on `PositionOpened` / `RedeemRequest` events before volume grows.
 - **Uniswap v3 only.** Direct `exactInputSingle` routes need a USDC/token pool at the configured fee tier. v4 /
-  UniversalRouter needs the adapter noted in the root README.
+  UniversalRouter needs the adapter noted in [DEVELOPMENT.md](../DEVELOPMENT.md).
