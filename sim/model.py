@@ -100,6 +100,18 @@ class Demand:
     tp_gain: float = 0.15
     skill: float = 0.0  # share of arrivals who call direction
     p_new: float = 0.3  # probability an arriving trade belongs to a new trader vs existing
+    emp: object = None  # hl.empirical(): if set, size/leverage/hold/asset/outcome come from real Hyperliquid positions
+
+
+@dataclass
+class LpFlow:
+    """Elastic LP supply: daily deposits/withdrawals chase hurdle = idle_apr + premium on the trailing APY."""
+
+    premium: float = 0.03
+    window_days: int = 30
+    max_rate: float = 0.02  # max share of TVL that arrives or leaves per day
+    full_gap: float = 0.01  # APY gap (vs hurdle) at which the flow hits max_rate; linear below
+    floor: float = 1_000.0  # last dollars never leave (keeps the vault alive)
 
 
 @dataclass
@@ -110,6 +122,7 @@ class Trader:
     pnl: float = 0.0
     promoted_l1_t: int = -1
     promoted_l2_t: int = -1
+    tpl: int = -1  # empirical demand: index of the real Hyperliquid trader this one imitates
 
 
 def settle(p: Params, usdc_out, B, D, M, tier, forced, is_liq, level=0, hold_m=NEVER):
@@ -210,7 +223,7 @@ LEDGER = ("margin_in", "trader_out", "keeper", "lp_roll", "lp_profit", "early_cl
 
 
 class Sim:
-    def __init__(self, prices, p=None, demand=None, tvl=1e6, insurance=0.0, seed=0, capacity=64):
+    def __init__(self, prices, p=None, demand=None, tvl=1e6, insurance=0.0, seed=0, capacity=64, lp=None):
         self.p = p = p or Params()
         self.S = np.asarray(prices, float)
         A, self.T = self.S.shape
@@ -251,6 +264,7 @@ class Sim:
         self.log = []
         self.traders = []
         self.trader_map = {}
+        self.lp, self.shares, self.queue, self.daily = lp, tvl, 0.0, []  # shares: 1 per initial $; queue: pending exits
 
     def ta(self):
         return self.cash + self.borrowed
@@ -272,6 +286,8 @@ class Sim:
             y = self.cash * idle
             self.cash += y
             self.L["idle"] += y
+            if self.lp and t % DAY == 0:
+                self._lp_flow()
             if self.ok[t]:
                 if self.open:
                     self._events(t)
@@ -300,6 +316,41 @@ class Sim:
             self._exit(i, self.T - 1, self.S[:, -1], 1.0, False, False)
         self._snap()
         return self
+
+    def _lp_flow(self):
+        """Once a day: record share price, then deposit/queue a withdrawal by the APY gap to the hurdle."""
+        lp, L = self.lp, self.L
+        ta = self.ta()
+        px = ta / self.shares
+        self.daily.append((ta, self.borrowed, L["lp_roll"], L["lp_profit"], L["idle"], px))
+        if len(self.daily) > lp.window_days:
+            apy = (px / self.daily[-1 - lp.window_days][5]) ** (365 / lp.window_days) - 1
+            gap = apy - (self.p.idle_apr + lp.premium)
+            flow = lp.max_rate * ta * max(-1.0, min(1.0, gap / lp.full_gap))
+            if flow > 0:
+                self.cash += flow
+                self.shares += flow / px
+                self.queue = 0.0
+            else:
+                self.queue += -flow
+        # withdrawals only from cash the 85% utilisation cap leaves free; the rest waits in the queue
+        pay = min(self.queue, self.cash, ta - self.borrowed / self.p.max_util, ta - lp.floor)
+        if pay > 0:
+            self.cash -= pay
+            self.shares -= pay / px
+            self.queue -= pay
+
+    def lp_report(self, years=3):
+        """Elastic run, averaged over the last `years` years: TVL, share-price APY, utilisation, income split."""
+        d = np.array(self.daily)
+        w = d[-int(years * 365):]
+        ta, yrs = w[:, 0].mean(), (len(w) - 1) / 365
+        inc = lambda i: (w[-1, i] - w[0, i]) / ta / yrs  # noqa: E731
+        apy = (w[-1, 5] / w[0, 5]) ** (1 / yrs) - 1
+        return dict(tvl=ta, tvl_min=w[:, 0].min(), tvl_max=w[:, 0].max(), apy=apy, util=(w[:, 1] / w[:, 0]).mean(),
+                    roll=inc(2), profit=inc(3), idle=inc(4), lent=w[:, 1].mean(),
+                    premium_per_lent=(apy - self.p.idle_apr) * ta / max(w[:, 1].mean(), 1e-9),
+                    tvl_daily=d[::7, 0].round(0).tolist())
 
     def _snap(self):
         self.hourly.append((self.ta(), self.borrowed, self.ins, self.expo.sum()))
@@ -358,6 +409,8 @@ class Sim:
         else:
             tr_obj = self.traders[int(r.integers(len(self.traders)))]
 
+        if d.emp is not None:
+            return self._arrive_emp(t, tr_obj)
         cfg = self.p.levels.get(tr_obj.level, DEFAULT_LEVELS[0])
         req_tier = 10 if r.random() < d.p_10x else 5
         tier = min(req_tier, cfg.max_leverage)
@@ -379,6 +432,31 @@ class Sim:
                     self.retry[back] += 1
                 return
         self.open_position(t, a, tier, M, auto=auto, hold=hold, sl_frac=sl, tp_gain=tp, trader=tr_obj.id)
+
+    def _arrive_emp(self, t, tr_obj):
+        """Calibrated trade: a real position of the trader's Hyperliquid template. Size is what they wanted, clipped by
+        their level cap (never inflated); the win/loss is drawn from the real win rate at that hold (d.skill > 0)."""
+        d, r, e = self.demand, self.rng, self.demand.emp
+        if tr_obj.tpl < 0:
+            tr_obj.tpl = int(r.integers(len(e["lo"])))
+        j = int(r.integers(e["lo"][tr_obj.tpl], e["hi"][tr_obj.tpl]))
+        cfg = self.p.levels.get(tr_obj.level, DEFAULT_LEVELS[0])
+        tier = min(10 if r.random() < e["p_10x"] else 5, cfg.max_leverage)
+        if e["cost"][j] < self.p.min_notional:
+            return
+        M = min(e["cost"][j] / tier, cfg.max_margin)
+        if M * tier < self.p.min_notional:
+            return
+        a, hold, auto = int(e["btc"][j]), max(int(e["hold_h"][j] * 60), 1), r.random() < d.p_auto
+        if d.skill:
+            win = r.random() < e["win_by_hold"][int(np.searchsorted(e["hold_edges_h"], e["hold_h"][j], "right"))]
+            exit_t = min(t + (hold if auto else min(hold, EPOCH)), self.T - 1)
+            if (self.S[a, exit_t] > self.S[a, t]) != win:  # not the move this trade needs: look again later
+                back = t + int(r.integers(60, DAY))
+                if back < self.T:
+                    self.retry[back] += 1
+                return
+        self.open_position(t, a, tier, M, auto=auto, hold=hold, trader=tr_obj.id)
 
     def _agg(self):
         """Per-asset trigger bands so quiet minutes skip the per-position scan."""
