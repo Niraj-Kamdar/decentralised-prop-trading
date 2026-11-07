@@ -23,7 +23,7 @@ landing page · /backtest page · remote simulator agents
 
 ## Does each feature change something users see?
 - **Crash-safety badge on the landing page** ("$0 LP loss through 7 crashes"): it comes from `fulcrum.crash` rows, and links to the query that proves it. *(In progress.)*
-- **Headline APY and the vault-value chart**: from the latest `fulcrum.results` `headline` section (5.07% APY, 2,497 daily points). *(Done, live on the `/backtest` page and the landing page.)*
+- **Headline APY and the vault-value chart**: from the latest `fulcrum.results` `headline` section (fixed $1M vault: 5.07% APY, 2,497 daily points) and `lp_equilibrium` (lender APY once deposits settle where real trader demand supports them: 10.2% at a 10% lender hurdle, vault ~$86k). *(Done, live on the `/backtest` page and the landing page.)*
 - **Yearly APY table**: from `fulcrum.year`. *(Done, live on `/backtest` page.)*
 - **Crash stress-test matrix & risk claim**: from `fulcrum.crash` across base, stress, and outage scenarios. *(Done, live on `/backtest` page.)*
 - **Real-trader behavior and leverage distribution**: from the `real_traders` section on Arkiv. *(Done, live on `/backtest` page.)*

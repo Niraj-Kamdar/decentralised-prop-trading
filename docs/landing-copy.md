@@ -49,7 +49,7 @@ Rules: one idea per illustration; label with dollars, not percentages; every ill
 **CTAs:** `Start trading` (primary) · `Earn as a lender` (secondary)
 
 **Proof strip** (three small stats under the CTAs, all from Arkiv; each links to `/backtest`):
-- `{arkiv.headline.apy = 5.07%}` lender APY, backtested
+- `{arkiv.lp_equilibrium.calibrated["0.055"].apy = 10.2%, vault ~$86k}` lender APY, backtested
 - `${arkiv.crash.base.lp_loss_total = 0}` lender losses through `{arkiv.crash.count = 7}` crashes
 - `{arkiv.meta.years = 6.8}` years of minute-by-minute prices
 
@@ -146,7 +146,7 @@ Footnote: *The trader can never lose more than their deposit, and the lenders ar
 **Lead:** Before asking anyone to lend, we ran the protocol minute by minute through 6.8 years of Binance prices and `{arkiv.meta.positions = 6,967}` real Hyperliquid trades. Every result is published on Arkiv and signed by our wallet, so you can check it without trusting this page.
 
 Three stat tiles:
-- **`{arkiv.headline.apy = 5.07%}`** average lender APY
+- **`{arkiv.lp_equilibrium.calibrated["0.055"].apy = 10.2%, vault ~$86k}`** average lender APY
 - **`${arkiv.crash.base.lp_loss_total = 0}`** lender losses in COVID, LUNA, FTX and `{n}` more crashes
 - **`${arkiv.headline.bad_debt = 0}`** bad debt
 
@@ -169,7 +169,7 @@ Then the vault-value line chart (the same `NavChart` as `/backtest`).
 **Lenders, H2:** Earn from traders, without trading.
 - Earn 7–15% of every winning trade, plus borrowing fees
 - Traders' deposits and an insurance fund take losses before you
-- `{arkiv.headline.apy = 5.07%}` APY in our 6.8-year backtest
+- `{arkiv.lp_equilibrium.calibrated["0.055"].apy = 10.2%, vault ~$86k}` APY in our 6.8-year backtest
 - Withdraw any time, paid out within 30 days
 
 Lender card small print: *Backtests aren't guarantees. Deposits can lose value.*
@@ -190,7 +190,7 @@ No. Your deposit is the most you can lose. The contract closes your trade before
 From lenders who deposit USDC into the vault. They're paid back first on every close, then take a share of the profit.
 
 **What do lenders earn?**
-7–15% of each winning trade, depending on the trader's level, plus 80% of borrowing fees. Our backtest averaged `{arkiv.headline.apy = 5.07%}` a year.
+7–15% of each winning trade, depending on the trader's level, plus 80% of borrowing fees. Our backtest averaged `{arkiv.lp_equilibrium.calibrated["0.055"].apy = 10.2%, vault ~$86k}` a year.
 
 **Can lenders lose money?**
 Yes, if a crash is fast enough that a trader's deposit and the insurance fund can't cover it. In our base backtest it never happened across 7 crashes; in a harsh stress test lenders lost `{arkiv.crash.stress_outage_30m.max_usd = $0}` in every crash. All results are public on Arkiv.
