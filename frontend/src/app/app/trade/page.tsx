@@ -41,7 +41,7 @@ export default function TradePage() {
           ))}
         </div>
         <div>
-          <div className="text-xs text-muted">10-min TWAP</div>
+          <div className="text-xs text-muted">Chainlink price</div>
           <div className="num text-lg font-semibold">{live?.ready ? price(live.twap) : "warming up"}</div>
         </div>
         <div>
@@ -49,7 +49,7 @@ export default function TradePage() {
           <div className="num text-sm">
             {price(live?.spot)}
             {live?.spot && live.twap ? (
-              <span className="ml-1 text-muted">({(((live.spot - live.twap) / live.twap) * 100).toFixed(2)}% vs TWAP)</span>
+              <span className="ml-1 text-muted">({(((live.spot - live.twap) / live.twap) * 100).toFixed(2)}% vs Chainlink)</span>
             ) : null}
           </div>
         </div>

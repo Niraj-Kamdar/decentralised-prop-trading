@@ -3,7 +3,7 @@ import { oracleAbi } from "@/abi";
 import { ASSETS, CONTRACTS } from "./config";
 
 export type OraclePrice = {
-  /** 10-minute Uniswap v4 TWAP, USD per whole token (what every risk check uses). Null while warming up or stale. */
+  /** Chainlink price, USD per whole token (what every risk check uses). Null while warming up or stale. */
   twap: number | null;
   twap18: bigint | null;
   /** Current pool price. Display only: the contracts never use it. */
@@ -12,7 +12,7 @@ export type OraclePrice = {
   ready: boolean;
 };
 
-/** Reads TWAP + spot for every configured asset in one multicall. */
+/** Reads the oracle price + pool spot for every configured asset in one multicall. */
 export async function readOraclePrices(client: PublicClient): Promise<Record<string, OraclePrice>> {
   const o = { address: CONTRACTS.oracle, abi: oracleAbi } as const;
   const calls = ASSETS.flatMap((a) => [

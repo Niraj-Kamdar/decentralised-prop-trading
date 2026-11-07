@@ -18,7 +18,7 @@ function push(arr: Point[], time: number, value: number | null | undefined) {
 }
 
 /**
- * Live chart built from on-chain samples: the Uniswap v4 pool price (spot) and the 10-minute TWAP that every
+ * Live chart built from on-chain samples: the Uniswap v4 pool price (spot) and the Chainlink price that every
  * protocol check uses, plus liquidation lines for the trader's open positions.
  */
 export function PriceChart({
@@ -51,7 +51,7 @@ export function PriceChart({
       crosshair: { mode: 0 },
     });
     spotSeries.current = c.addLineSeries({ color: rgb("--fg"), lineWidth: 2, title: "Pool" });
-    twapSeries.current = c.addLineSeries({ color: rgb("--accent"), lineWidth: 2, lineStyle: 2, title: "10m TWAP" });
+    twapSeries.current = c.addLineSeries({ color: rgb("--accent"), lineWidth: 2, lineStyle: 2, title: "Chainlink" });
     chart.current = c;
     return () => {
       c.remove();
@@ -101,7 +101,7 @@ export function PriceChart({
           <span className="inline-block h-0.5 w-4 bg-fg" /> Uniswap pool
         </span>
         <span className="flex items-center gap-1.5 text-accent">
-          <span className="inline-block h-0.5 w-4 border-t-2 border-dashed border-accent" /> 10-min TWAP (used for risk)
+          <span className="inline-block h-0.5 w-4 border-t-2 border-dashed border-accent" /> Chainlink price (used for risk)
         </span>
         <span className="ml-auto text-muted">Live on-chain samples</span>
       </div>

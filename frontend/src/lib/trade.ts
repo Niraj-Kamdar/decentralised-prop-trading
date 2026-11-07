@@ -14,7 +14,7 @@ export const tokensForUsdc = (usdc: bigint, price18: bigint, decimals: number) =
 
 /**
  * Open: the PositionManager swaps on the asset's v4 pool itself. We only choose `minAmountOut` from a fresh
- * Quoter quote; the contract additionally rejects a fill worth less than notional * (1 - maxEntrySlippage) at the TWAP.
+ * Quoter quote; the contract additionally rejects a fill worth less than notional * (1 - maxEntrySlippage) at the oracle price.
  */
 export async function prepareOpen(
   client: PublicClient,
@@ -34,8 +34,8 @@ export async function prepareOpen(
 
 /**
  * Exit (close / liquidate / trigger): the contract enforces `max(minAmountOut, mark * (1 - maxSlippage))` with the
- * mark at the TWAP. We pass a quote-based minimum and flag when the pool is below that on-chain floor (the
- * transaction would revert until the pool recovers or the TWAP catches up).
+ * mark at the oracle price. We pass a quote-based minimum and flag when the pool is below that on-chain floor (the
+ * transaction would revert until the pool recovers or the oracle price moves).
  */
 export async function prepareExit(
   client: PublicClient,
