@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from model import DAY, EPOCH, YEAR, Params, Sim, settle
+from model import DAY, EPOCH, NEVER, YEAR, Demand, LpFlow, Params, Sim, settle
 
 p = Params()
 
@@ -113,5 +113,49 @@ assert (lp_profit, trader) == (15.0, 180.0)
 # Liquidation within window: early-close fee never charged on liquidation
 k, ret, lp_roll, lp_profit, ins, ops, trader, short = settle(p_fee, 450, 400, 10, 100, 5, True, True, level=0, hold_m=120)
 assert trader == 0.0 and lp_profit == 0.0
+
+# 8. Empirical demand: two real traders, one wants $200 notional, one wants $1M. L0 caps ($50 margin, 5x): the small
+# one gets exactly what it wants ($40 margin, never inflated to $50), the big one is clipped to $50.
+emp = dict(cost=np.array([200.0, 1e6]), hold_h=np.array([2.0, 2.0]), btc=np.array([False, False]),
+           lo=np.array([0, 1]), hi=np.array([1, 2]), hold_edges_h=np.array([1.0]), win_by_hold=np.array([0.5, 0.5]),
+           p_10x=1.0)
+s = Sim(np.full((2, 3 * DAY), 2000.0), Params(pool_depth=1e12, pool_fee=0),
+        Demand(per_day=20, p_new=1.0, emp=emp), tvl=1e6, seed=1).run()
+M, tier = s.P["M"][:s.n], s.P["tier"][:s.n]
+assert s.n > 10 and set(np.round(M, 6)) == {40.0, 50.0} and (tier == 5).all()
+
+# 9. Elastic LP: flat prices, no trades, idle 4.5%. Hurdle 7.5% -> TVL leaves; hurdle 0.5% -> TVL arrives.
+# A queued exit cannot be paid from borrowed money: 85% util cap means the vault never pays out below borrowed / 0.85.
+flat = np.full((2, 200 * DAY), 2000.0)
+down = Sim(flat, Params(idle_apr=0.045, pool_depth=1e12, pool_fee=0), None, 1e6, lp=LpFlow(premium=0.03)).run()
+up = Sim(flat, Params(idle_apr=0.045, pool_depth=1e12, pool_fee=0), None, 1e6, lp=LpFlow(premium=-0.04)).run()
+assert down.ta() < 0.5e6 and up.ta() > 2e6 and down.cash >= 0
+s = Sim(flat, Params(idle_apr=0.045, pool_depth=1e12, pool_fee=0), None, 1e6, lp=LpFlow(premium=0.03))
+s.open_position(20, 0, 10, 30_000, hold=NEVER)  # $270k borrowed
+s.run()
+assert s.borrowed / s.ta() <= 0.85 + 1e-9 and s.queue > 0  # exits wait in the queue
+
+# 10. Level sweep knobs: defaults unchanged; percent threshold promotes a $50 trader at +50% return, not +10%.
+assert (Params().levels[0].promote_min_roi, Params().levels[0].promote_min_pnl) == (0.0, 25.0)
+from dataclasses import replace as _rep
+def _lv(**kw):
+    lv = {k: _rep(v) for k, v in Params().levels.items()}
+    lv[0] = _rep(lv[0], **kw)
+    return Params(levels=lv)
+s = Sim(np.full((2, 100), 2000.0), _lv(promote_min_trades=0, promote_min_roi=0.5), tvl=1e6)
+a, b = s.get_trader(0), s.get_trader(1)
+s._record_result(a, 24.0, 100, 0, 50.0)   # +48% < 50%
+assert a.level == 0
+s._record_result(b, 25.0, 100, 0, 50.0)   # +50%
+assert b.level == 1 and b.margin == 0.0
+s._record_result(b, 5.0, 100, 0, 50.0)    # post-promotion tracking
+assert (b.n_after, b.pnl_after) == (1, 5.0)
+# faster count/pnl thresholds promote earlier; demotion untouched (L1 still drops at -$50)
+s = Sim(np.full((2, 100), 2000.0), _lv(promote_min_trades=0, promote_min_pnl=10.0), tvl=1e6)
+c = s.get_trader(0)
+s._record_result(c, 10.0, 100, 0, 50.0)
+assert c.level == 1
+s._record_result(c, -49.0, 100, 0, 50.0); assert c.level == 1
+s._record_result(c, -1.0, 100, 0, 50.0); assert c.level == 0
 
 print("ok")
