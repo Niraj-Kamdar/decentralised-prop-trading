@@ -6,7 +6,7 @@ import { formatUnits } from "viem";
 import { useAccount, usePublicClient } from "wagmi";
 import { pmAbi } from "@/abi";
 import { AmountInput, Notice, Row, Segmented, Toggle } from "@/components/ui";
-import { borrowCapacity, exposureHeadroom, tierParams, useProtocol } from "@/hooks/useProtocol";
+import { borrowCapacity, exposureHeadroom, LEVEL_NAMES, tierParams, useProtocol, useTraderStats } from "@/hooks/useProtocol";
 import { useTx } from "@/hooks/useTx";
 import { approveIfNeeded, useUsdcBalance } from "@/hooks/useUsdc";
 import { chain, CONTRACTS, TIERS, TRADING_CONFIGURED, USDC, type Asset } from "@/lib/config";
@@ -16,17 +16,20 @@ import { prepareOpen, tokensForUsdc } from "@/lib/trade";
 import { quoteExactIn } from "@/lib/uniswap";
 
 const SLIPPAGES = [30, 50, 100] as const;
-const PRESETS = ["5", "10"];
+const PRESETS = ["10", "25", "50"];
 
 /** `price18` is the Chainlink price (null while the oracle warms up); entries are checked against it on-chain. */
 export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint | null }) {
   const { isConnected } = useAccount();
   const client = usePublicClient();
   const { data: proto } = useProtocol();
+  const level = useTraderStats().data?.level ?? 0;
+  const lv = proto?.pm.levels[level];
+  const levelName = LEVEL_NAMES[level] ?? `Level ${level}`;
   const { data: balance } = useUsdcBalance();
   const { run, busy, walletClient, publicClient } = useTx();
 
-  const [amount, setAmount] = useState("5");
+  const [amount, setAmount] = useState("10");
   const [tier, setTier] = useState<number>(5);
   const [autoRoll, setAutoRoll] = useState(false);
   const [slippage, setSlippage] = useState<number>(50);
@@ -39,7 +42,7 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
   const margin = parseUsdc(amount);
   const notional = margin * BigInt(tier);
   const borrowed = notional - margin;
-  const t = tierParams(proto, tier);
+  const t = tierParams(proto, tier, level);
   const px = price18 ? Number(formatUnits(price18, 18)) : undefined;
 
   const oracleTokens = price18 && notional > 0n ? tokensForUsdc(notional, price18, asset.decimals) : 0n;
@@ -64,11 +67,14 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
   // Pre-flight checks mirroring the contract's revert conditions.
   let problem: string | null = null;
   if (!TRADING_CONFIGURED) problem = "Trading is not configured.";
-  else if (!price18) problem = "The price oracle is warming up (it needs 10 minutes of pool history). Try again shortly.";
+  else if (!price18) problem = "The Chainlink price is unavailable right now. Try again shortly.";
   else if (proto?.pm.paused) problem = "New positions are paused.";
   else if (proto && !proto.pm.assets[asset.address.toLowerCase()]?.enabled) problem = "This market is not enabled yet.";
   else if (proto && !proto.pm.tiers[tier]?.enabled) problem = `${tier}x is disabled.`;
   else if (margin === 0n) problem = "Enter an amount.";
+  else if (lv && tier > lv.maxLeverage)
+    problem = `${levelName} level trades up to ${lv.maxLeverage}x. Close winning trades to level up.`;
+  else if (lv && margin > lv.maxMargin) problem = `${levelName} level deposits up to ${usd(lv.maxMargin)} per trade.`;
   else if (proto && notional < proto.pm.minNotional)
     problem = `Minimum position size is ${usd(proto.pm.minNotional)}: at ${tier}x, put in at least ${usd(toUsdc(proto.pm.minNotional) / tier)}.`;
   else if (proto && borrowed > borrowCapacity(proto))
@@ -77,7 +83,7 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
     problem = `${asset.symbol} is near its open-interest cap: max size ${usd(exposureHeadroom(proto, asset.address))} right now.`;
   else if (balance !== undefined && margin > balance) problem = "Not enough USDC in your wallet.";
   else if (impactBps !== null && proto && impactBps > proto.pm.maxEntrySlippageBps)
-    problem = `The pool would fill ${pct(impactBps, 2)} worse than the 10-minute average price (max ${pct(proto.pm.maxEntrySlippageBps)}). Try a smaller size or wait for the pool to settle.`;
+    problem = `The pool would fill ${pct(impactBps, 2)} worse than the Chainlink price (max ${pct(proto.pm.maxEntrySlippageBps)}). Try a smaller size or wait for the pool to settle.`;
 
   async function submit() {
     if (!walletClient || !publicClient) return;
@@ -146,6 +152,7 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
         />
         <Row label="Max loss" value={usd(margin)} />
         <Row label="Fees" value="None for the first 7 days" tone="up" />
+        <Row label="Your level" value={lv ? `${levelName} · up to ${lv.maxLeverage}x, ${usd(lv.maxMargin)}` : levelName} />
         <Row label="You keep of profits" value={`${keepPct}%`} />
       </div>
 
@@ -187,7 +194,7 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
         </button>
       )}
       <p className="text-center text-xs text-muted">
-        Two wallet confirmations: approve USDC, then open. Your fill is checked against the 10-minute Uniswap average price.
+        Two wallet confirmations: approve USDC, then open. Your fill is checked against the Chainlink price.
       </p>
     </div>
   );

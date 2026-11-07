@@ -371,14 +371,13 @@ function Tickets({ lp }: { lp?: LPState }) {
 }
 
 function HowItWorks({ proto }: { proto?: ProtocolState }) {
-  const t5 = proto?.pm.tiers[5];
-  const t10 = proto?.pm.tiers[10];
+  const cuts = proto?.pm.levels.filter((l) => l.enabled).map((l) => l.lpProfitBps);
+  const share = cuts?.length ? `${pct(Math.min(...cuts), 0)}–${pct(Math.max(...cuts), 0)}` : "7%–15%";
   return (
     <div className="card p-4 text-sm">
       <h3 className="text-lg">How LPs earn</h3>
       <div className="mt-3 rounded-lg bg-panel2 p-3">
-        <Row label="Share of 5x profits" value={t5 ? pct(t5.lpProfitBps, 0) : "8%"} tone="up" />
-        <Row label="Share of 10x profits" value={t10 ? pct(t10.lpProfitBps, 0) : "12%"} tone="up" />
+        <Row label="Share of trader profits (by level)" value={share} tone="up" />
         <Row label="Weekly fees (after week 1)" value={`80% of ${proto ? pct(proto.pm.rolloverAprBps, 0) : "8%"} APR`} tone="up" />
         <Row label="Idle cash" value="Lending yield" tone="up" />
       </div>

@@ -5,7 +5,7 @@ const FRIENDLY: Record<string, string> = {
   // PositionManager
   BelowMinNotional: "Position is below the minimum size. Increase your margin or leverage.",
   ExposureCapExceeded: "This market is at its open-interest cap right now. Try a smaller size.",
-  EntryPriceDeviation: "The pool would fill too far from the 10-minute average price. Try a smaller size or wait for the pool to settle.",
+  EntryPriceDeviation: "The pool would fill too far from the Chainlink price. Try a smaller size or wait for the pool to settle.",
   UnhealthyAtOpen: "Entry fill was too poor to open safely. Try a smaller size.",
   PositionNotOpen: "This position is already closed.",
   NotAuthorized: "Your wallet is not allowed to do this.",
@@ -15,14 +15,19 @@ const FRIENDLY: Record<string, string> = {
   InvalidTier: "That leverage tier is disabled.",
   InvalidAmount: "Invalid amount.",
   NothingToClaim: "Nothing to claim.",
+  LevelLimitExceeded: "Your trader level does not allow this size or leverage yet. Win more trades to level up.",
+  ProxyImplementationNotSet: "Trading is not configured yet (no position wallet template).",
   EnforcedPause: "New positions are paused. You can still close existing ones.",
-  // UniV4TwapOracle
-  TwapNotReady: "The price oracle is still collecting its 10 minutes of pool history. Try again shortly.",
-  TwapStale: "The price oracle has not been updated recently (keeper offline). Try again shortly.",
-  FeedNotEnabled: "No oracle feed for this market.",
+  // ChainlinkOracle
+  StalePrice: "The Chainlink price feed has not updated recently. Try again shortly.",
+  RoundNotComplete: "The Chainlink price feed is mid-update. Try again shortly.",
+  InvalidPrice: "The Chainlink price feed returned an invalid price. Try again shortly.",
+  FeedNotSet: "No price feed for this market.",
+  SequencerDown: "Base is having sequencer issues. Try again shortly.",
+  GracePeriodNotOver: "Base just recovered from a sequencer outage. Try again in a few minutes.",
   // TraderProxy
   InsufficientOutput:
-    "The Uniswap pool would pay less than allowed (your slippage limit, or the protocol's floor at the 10-minute average price). Retry, raise slippage, or wait for the pool to recover.",
+    "The Uniswap pool would pay less than allowed (your slippage limit, or the protocol's floor at the Chainlink price). Retry, raise slippage, or wait for the pool to recover.",
   SwapCallFailed: "The Uniswap swap failed (insufficient pool liquidity or price moved).",
   // LPVault
   UtilizationCapExceeded: "The vault has no spare capacity for this position size right now.",

@@ -1,12 +1,13 @@
 /**
  * Plain-number mirrors of the PositionManager settlement waterfall, used for previews only.
- * Defaults match the deployed constructor tiers; live values are read from chain when available.
+ * Defaults: tier maintenance as deployed, profit cuts of the Starter level (every new wallet). Live values are read
+ * from chain when available.
  */
 export type TierParams = { maintenanceBps: number; lpProfitBps: number; treasuryProfitBps: number };
 
 export const DEFAULT_TIERS: Record<number, TierParams> = {
-  5: { maintenanceBps: 400, lpProfitBps: 800, treasuryProfitBps: 200 },
-  10: { maintenanceBps: 200, lpProfitBps: 1200, treasuryProfitBps: 300 },
+  5: { maintenanceBps: 400, lpProfitBps: 1500, treasuryProfitBps: 500 },
+  10: { maintenanceBps: 200, lpProfitBps: 1500, treasuryProfitBps: 500 },
 };
 
 export type Outcome = {
