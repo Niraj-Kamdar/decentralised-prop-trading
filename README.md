@@ -262,7 +262,7 @@ flowchart LR
 
 ## Known gaps before audit
 
-- **Keepers must run**: if none do, unhealthy positions are not liquidated.
+- **No keeper runs yet.** The hackathon deployment has none; one is planned after. Until then unhealthy positions are only liquidated if someone calls `liquidate` (it is permissionless).
 - **Chainlink is a single price source**: a stale feed (over 1 hour) pauses every priced action for that asset.
 - **Launch caps are small on purpose**: $10k vault deposit cap, $100 per wallet, 35% of the vault per asset.
 - USDC assumed = $1.

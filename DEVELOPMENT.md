@@ -214,9 +214,8 @@ Every parameter is owner-configurable within bounds (`setQueueParams`, `setBonus
 - New allocations are blocked by *all* pending requests, not just matured ones. This is more conservative than
   the spec.
 
-## Legacy code from the first target chain
+## Code kept as deployed
 
-The protocol first targeted another chain. Until it is removed, these files remain and are not used on Base:
-`script/Deploy.s.sol`, `script/lib/ArcMainnet.sol`, `ProtocolDeployer.deployArc`, `script/fork/`,
-`test/fork/ArcFork.t.sol` / `ForkBase.t.sol` (skipped unless `ARC_MAINNET_RPC_URL` is set), `src/libraries/ArcConstants.sol`
-(its USDC check is inactive on Base), the `fork*` npm scripts and the `arc_*` RPC aliases in `foundry.toml`.
+`src/libraries/ArcConstants.sol` is left over from the protocol's first target chain. `PositionManager` and `LPVault`
+still import it for a chain-ID-gated USDC check that never fires on Base. It stays so the source matches the
+contracts verified on Basescan; remove it with the next upgrade of either contract.
