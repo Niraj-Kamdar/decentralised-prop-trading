@@ -10,7 +10,7 @@ Live app: https://fulcrum-trade.vercel.app · Backtest: https://fulcrum-trade.ve
 
 > Build, test and contribution details: [DEVELOPMENT.md](DEVELOPMENT.md)
 
-## Deployed on Base mainnet (8453)
+## Deployed on Base mainnet (8453), verified on Basescan
 
 | Contract | Address |
 |---|---|
