@@ -1,0 +1,101 @@
+=== Toolchain ===
+foundry
+=== Source (with line counts) ===
+      98 src/ChainlinkOracle.sol
+      84 src/InsuranceReserve.sol
+      21 src/interfaces/IERC7540.sol
+      61 src/interfaces/IProtocol.sol
+      16 src/libraries/ArcConstants.sol
+     937 src/LPVault.sol
+     860 src/PositionManager.sol
+      67 src/TraderProxy.sol
+     356 src/UniV4TwapOracle.sol
+      99 src/V4SwapRouter.sol
+    2599 total
+=== nSLOC ===
+src/ChainlinkOracle.sol: 78
+src/InsuranceReserve.sol: 62
+src/interfaces/IERC7540.sol: 14
+src/interfaces/IProtocol.sol: 47
+src/libraries/ArcConstants.sol: 10
+src/LPVault.sol: 719
+src/PositionManager.sol: 664
+src/TraderProxy.sol: 46
+src/UniV4TwapOracle.sol: 263
+src/V4SwapRouter.sol: 78
+TOTAL: 1981
+=== NatSpec ===
+      10
+=== test_files ===
+      14
+=== test_functions ===
+116
+=== stateless_fuzz ===
+2
+=== foundry_invariant ===
+6
+=== echidna ===
+0:       0
+=== medusa ===
+0:       0
+=== hardhat_fuzz ===
+0
+0
+=== fork ===
+4
+=== certora ===
+       0:       0
+=== halmos ===
+0:       0
+=== hevm ===
+0
+=== docs ===
+docs/
+README.md
+README.md
+=== commit ===
+df74b20
+=== git_unique_authors ===
+       2
+=== git_contributors ===
+  55 Niraj Kamdar
+   8 Claude
+=== git_source_contributors ===
+2578	239	Claude
+336	76	Niraj Kamdar
+=== git_repo_age ===
+2026-11-06T00:21:07Z
+2026-11-07T06:30:51+05:30
+=== git_total_commits ===
+63
+=== git_merge_count ===
+      17
+=== git_hotspots ===
+   5 src/PositionManager.sol
+   4 src/LPVault.sol
+   4 src/interfaces/IProtocol.sol
+   2 src/OracleVerifier.sol
+   2 src/interfaces/IPyth.sol
+   1 src/V4SwapRouter.sol
+   1 src/UniV4TwapOracle.sol
+   1 src/TraderProxy.sol
+   1 src/libraries/ArcConstants.sol
+   1 src/interfaces/IERC7540.sol
+   1 src/InsuranceReserve.sol
+   1 src/ChainlinkOracle.sol
+=== git_recent_30d ===
+d641ac1 feat(vault): add owner-configurable total and per-address deposit caps and denylist check
+3b8d518 feat(position-manager): add trader levels with auto promotion/demotion and a denylist
+8b96353 feat(oracle): add Chainlink oracle with staleness check and v4 pool routing
+b641acb feat(position-manager): make PositionManager UUPS-upgradeable with settable oracle
+dae107b Replace Pyth with a Uniswap v4 TWAP oracle and trade through v4 pools
+a0fedc9 Add LP withdrawal queue, stress bonus pot and solvency gate
+d76d339 Add core contracts for leveraged spot prop trading on Arc
+=== git_large_diffs ===
+1316 COMMIT:d76d339 Claude Add core contracts for leveraged spot prop trading on Arc
+757 COMMIT:a0fedc9 Claude Add LP withdrawal queue, stress bonus pot and solvency gate
+744 COMMIT:dae107b Claude Replace Pyth with a Uniswap v4 TWAP oracle and trade through v4 pools
+184 COMMIT:3b8d518 Niraj Kamdar feat(position-manager): add trader levels with auto promotion/demotion and a denylist
+98 COMMIT:8b96353 Niraj Kamdar feat(oracle): add Chainlink oracle with staleness check and v4 pool routing
+86 COMMIT:b641acb Niraj Kamdar feat(position-manager): make PositionManager UUPS-upgradeable with settable oracle
+44 COMMIT:d641ac1 Niraj Kamdar feat(vault): add owner-configurable total and per-address deposit caps and denylist check

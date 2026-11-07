@@ -1,0 +1,1338 @@
+[
+  {
+    "name": "ChainlinkOracle",
+    "sourcePath": "src/ChainlinkOracle.sol",
+    "artifactPath": "out/ChainlinkOracle.sol/ChainlinkOracle.json",
+    "constructor": {
+      "inputs": [
+        {
+          "name": "usdc_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "owner_",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    "functions": [
+      {
+        "name": "acceptOwnership",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "renounceOwnership",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setFeed",
+        "inputs": [
+          {
+            "name": "asset",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "aggregator",
+            "type": "contract",
+            "internalType": "AggregatorV3Interface"
+          },
+          {
+            "name": "maxStaleness",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "key",
+            "type": "tuple",
+            "internalType": "PoolKey"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "transferOwnership",
+        "inputs": [
+          {
+            "name": "newOwner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      }
+    ],
+    "hasReceive": false,
+    "hasFallback": false
+  },
+  {
+    "name": "InsuranceReserve",
+    "sourcePath": "src/InsuranceReserve.sol",
+    "artifactPath": "out/InsuranceReserve.sol/InsuranceReserve.json",
+    "constructor": {
+      "inputs": [
+        {
+          "name": "usdc_",
+          "type": "contract",
+          "internalType": "IERC20"
+        },
+        {
+          "name": "owner_",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    "functions": [
+      {
+        "name": "acceptOwnership",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "coverShortfall",
+        "inputs": [
+          {
+            "name": "deficit",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "donate",
+        "inputs": [
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "fund",
+        "inputs": [
+          {
+            "name": "toInsurance",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "treasuryCut",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "renounceOwnership",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setPositionManager",
+        "inputs": [
+          {
+            "name": "pm",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "transferOwnership",
+        "inputs": [
+          {
+            "name": "newOwner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "withdrawOps",
+        "inputs": [
+          {
+            "name": "to",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      }
+    ],
+    "hasReceive": false,
+    "hasFallback": false
+  },
+  {
+    "name": "LPVault",
+    "sourcePath": "src/LPVault.sol",
+    "artifactPath": "out/LPVault.sol/LPVault.json",
+    "constructor": {
+      "inputs": [],
+      "stateMutability": "nonpayable"
+    },
+    "functions": [
+      {
+        "name": "acceptOwnership",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "accrueBonus",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "allocateToPosition",
+        "inputs": [
+          {
+            "name": "proxy",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "approve",
+        "inputs": [
+          {
+            "name": "spender",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "breakTicket",
+        "inputs": [
+          {
+            "name": "ticketId",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "cancelRedeemRequest",
+        "inputs": [
+          {
+            "name": "requestId",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "claimTicket",
+        "inputs": [
+          {
+            "name": "ticketId",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "deposit",
+        "inputs": [
+          {
+            "name": "assets",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "receiver",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "depositWithBonus",
+        "inputs": [
+          {
+            "name": "assets",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "receiver",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "donateToBonusPot",
+        "inputs": [
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "initialize",
+        "inputs": [
+          {
+            "name": "usdc_",
+            "type": "contract",
+            "internalType": "IERC20"
+          },
+          {
+            "name": "morphoVault_",
+            "type": "contract",
+            "internalType": "IERC4626"
+          },
+          {
+            "name": "owner_",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "migrateMorphoVault",
+        "inputs": [
+          {
+            "name": "newVault",
+            "type": "contract",
+            "internalType": "IERC4626"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "mint",
+        "inputs": [
+          {
+            "name": "shares",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "receiver",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "processRedemptions",
+        "inputs": [
+          {
+            "name": "maxRequests",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "rebalance",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "redeem",
+        "inputs": [
+          {
+            "name": "shares",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "receiver",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "controller",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "renounceOwnership",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "repayFromPosition",
+        "inputs": [
+          {
+            "name": "principalReturned",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "principalBorrowed",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "yieldEarned",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "requestRedeem",
+        "inputs": [
+          {
+            "name": "shares",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "controller",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setBonusParams",
+        "inputs": [
+          {
+            "name": "bonusDuration_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "bonusEmissionPeriod_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxBonusAprBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minBonusDeposit_",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setDepositCaps",
+        "inputs": [
+          {
+            "name": "total",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "perAddress",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setOperator",
+        "inputs": [
+          {
+            "name": "operator",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "approved",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setParams",
+        "inputs": [
+          {
+            "name": "localBufferBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxUtilizationBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "profitUnlockDuration_",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setPositionManager",
+        "inputs": [
+          {
+            "name": "pm",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setQueueParams",
+        "inputs": [
+          {
+            "name": "redeemCooldown_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "stressUtilizationBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "exitPenaltyBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "gateCoverageBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "transfer",
+        "inputs": [
+          {
+            "name": "to",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "transferFrom",
+        "inputs": [
+          {
+            "name": "from",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "to",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "transferOwnership",
+        "inputs": [
+          {
+            "name": "newOwner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "upgradeToAndCall",
+        "inputs": [
+          {
+            "name": "newImplementation",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "data",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ],
+        "stateMutability": "payable"
+      },
+      {
+        "name": "withdraw",
+        "inputs": [
+          {
+            "name": "assets",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "receiver",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "controller",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      }
+    ],
+    "hasReceive": false,
+    "hasFallback": false
+  },
+  {
+    "name": "PositionManager",
+    "sourcePath": "src/PositionManager.sol",
+    "artifactPath": "out/PositionManager.sol/PositionManager.json",
+    "constructor": {
+      "inputs": [],
+      "stateMutability": "nonpayable"
+    },
+    "functions": [
+      {
+        "name": "acceptOwnership",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "addMargin",
+        "inputs": [
+          {
+            "name": "posId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "claimTraderPayout",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "closePosition",
+        "inputs": [
+          {
+            "name": "posId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "executeTrigger",
+        "inputs": [
+          {
+            "name": "posId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "initialize",
+        "inputs": [
+          {
+            "name": "usdc_",
+            "type": "contract",
+            "internalType": "IERC20"
+          },
+          {
+            "name": "lpVault_",
+            "type": "contract",
+            "internalType": "ILPVault"
+          },
+          {
+            "name": "insurance_",
+            "type": "contract",
+            "internalType": "IInsuranceReserve"
+          },
+          {
+            "name": "oracle_",
+            "type": "contract",
+            "internalType": "IOracle"
+          },
+          {
+            "name": "owner_",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "liquidate",
+        "inputs": [
+          {
+            "name": "posId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "openPosition",
+        "inputs": [
+          {
+            "name": "p",
+            "type": "tuple",
+            "internalType": "PositionManager.OpenParams"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "pause",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "processEpoch",
+        "inputs": [
+          {
+            "name": "posId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "renounceOwnership",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setAsset",
+        "inputs": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "enabled",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "maxExposureBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "stressShockBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setAutoRollover",
+        "inputs": [
+          {
+            "name": "posId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "enabled",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setDenied",
+        "inputs": [
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "denied",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setGuardian",
+        "inputs": [
+          {
+            "name": "guardian_",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setLevel",
+        "inputs": [
+          {
+            "name": "level",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "cfg",
+            "type": "tuple",
+            "internalType": "PositionManager.LevelConfig"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setOperator",
+        "inputs": [
+          {
+            "name": "operator",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "allowed",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setOracle",
+        "inputs": [
+          {
+            "name": "oracle_",
+            "type": "contract",
+            "internalType": "IOracle"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setOrders",
+        "inputs": [
+          {
+            "name": "posId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "stopLoss",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "takeProfit",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "trailingStop",
+            "type": "uint128",
+            "internalType": "uint128"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setRiskParams",
+        "inputs": [
+          {
+            "name": "rolloverAprBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "lpRolloverShareBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minNotional_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "keeperBounty_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxEntrySlippageBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxExitSlippageBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxLiqSlippageBps_",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setSwapRouter",
+        "inputs": [
+          {
+            "name": "router",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setTier",
+        "inputs": [
+          {
+            "name": "tier",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "cfg",
+            "type": "tuple",
+            "internalType": "PositionManager.TierConfig"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setTraderLevel",
+        "inputs": [
+          {
+            "name": "trader",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "level",
+            "type": "uint8",
+            "internalType": "uint8"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "transferOwnership",
+        "inputs": [
+          {
+            "name": "newOwner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "unpause",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "upgradeToAndCall",
+        "inputs": [
+          {
+            "name": "newImplementation",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "data",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ],
+        "stateMutability": "payable"
+      }
+    ],
+    "hasReceive": false,
+    "hasFallback": false
+  },
+  {
+    "name": "TraderProxy",
+    "sourcePath": "src/TraderProxy.sol",
+    "artifactPath": "out/TraderProxy.sol/TraderProxy.json",
+    "constructor": {
+      "inputs": [
+        {
+          "name": "manager_",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    "functions": [
+      {
+        "name": "executeSwap",
+        "inputs": [
+          {
+            "name": "router",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenIn",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenOut",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minOut",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "data",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "sweep",
+        "inputs": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "to",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      }
+    ],
+    "hasReceive": false,
+    "hasFallback": false
+  },
+  {
+    "name": "UniV4TwapOracle",
+    "sourcePath": "src/UniV4TwapOracle.sol",
+    "artifactPath": "out/UniV4TwapOracle.sol/UniV4TwapOracle.json",
+    "constructor": {
+      "inputs": [
+        {
+          "name": "poolManager_",
+          "type": "contract",
+          "internalType": "IPoolManager"
+        },
+        {
+          "name": "usdc_",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "owner_",
+          "type": "address",
+          "internalType": "address"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    "functions": [
+      {
+        "name": "acceptOwnership",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "disableFeed",
+        "inputs": [
+          {
+            "name": "asset",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "record",
+        "inputs": [
+          {
+            "name": "assetList",
+            "type": "array",
+            "internalType": "address[]"
+          },
+          {
+            "name": "expectedTicks",
+            "type": "array",
+            "internalType": "int24[]"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "renounceOwnership",
+        "inputs": [],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setFeed",
+        "inputs": [
+          {
+            "name": "asset",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "key",
+            "type": "tuple",
+            "internalType": "PoolKey"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setParams",
+        "inputs": [
+          {
+            "name": "twapWindow_",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "minObservationInterval_",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "maxStaleness_",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "maxObservationGap_",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "maxTickDelta_",
+            "type": "int24",
+            "internalType": "int24"
+          },
+          {
+            "name": "maxRecordDeviation_",
+            "type": "int24",
+            "internalType": "int24"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "setRecorder",
+        "inputs": [
+          {
+            "name": "recorder",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "allowed",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "transferOwnership",
+        "inputs": [
+          {
+            "name": "newOwner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      }
+    ],
+    "hasReceive": false,
+    "hasFallback": false
+  },
+  {
+    "name": "V4SwapRouter",
+    "sourcePath": "src/V4SwapRouter.sol",
+    "artifactPath": "out/V4SwapRouter.sol/V4SwapRouter.json",
+    "constructor": {
+      "inputs": [
+        {
+          "name": "poolManager_",
+          "type": "contract",
+          "internalType": "IPoolManager"
+        }
+      ],
+      "stateMutability": "nonpayable"
+    },
+    "functions": [
+      {
+        "name": "swapExactIn",
+        "inputs": [
+          {
+            "name": "key",
+            "type": "tuple",
+            "internalType": "PoolKey"
+          },
+          {
+            "name": "zeroForOne",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minAmountOut",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "recipient",
+            "type": "address",
+            "internalType": "address"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      },
+      {
+        "name": "unlockCallback",
+        "inputs": [
+          {
+            "name": "data",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ],
+        "stateMutability": "nonpayable"
+      }
+    ],
+    "hasReceive": false,
+    "hasFallback": false
+  }
+]
