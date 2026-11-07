@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CrashTimeline, Endings, Flow, LeverBar, Levels } from "@/components/landing/Illustrations";
 import { WaitlistForm } from "@/components/landing/WaitlistForm";
 import { Logo } from "@/components/Logo";
-import { APP_NAME } from "@/lib/config";
+import { APP_NAME, SITE_DESCRIPTION, SITE_URL, TAGLINE } from "@/lib/config";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 // Backtest run 5847faa, as published to Arkiv. Swap for getBacktest() once /backtest (feat/backtest-page) merges.
 const PROOF = { apy: "12.46%", years: "6.8", trades: "6,967", crashes: 7, stressWorst: "0.49%" };
@@ -22,6 +25,14 @@ const LENDER_POINTS = [
 ];
 
 const FAQ = [
+  {
+    q: "What is decentralised prop trading?",
+    a: "A prop firm gives traders capital and splits the profits. Here a smart contract does that job: lenders fund an on-chain vault, traders borrow from it with up to 10x leverage, and profits are split automatically when a trade closes. No challenges, no evaluation fees, no payout reviews.",
+  },
+  {
+    q: "Is this like copy trading?",
+    a: "Close. Instead of copying one trader's moves, lenders deposit USDC into a vault that funds every trader and earn a share of each winning trade. Traders' own deposits absorb losses first.",
+  },
   {
     q: "Is this a perp?",
     a: "No. When you open a trade, the contract buys real ETH or BTC with your deposit plus the vault's loan, and holds it until you close. There's no funding rate.",
@@ -60,9 +71,31 @@ function Arrow({ className = "" }: { className?: string }) {
   );
 }
 
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "Organization", name: APP_NAME, url: SITE_URL, logo: `${SITE_URL}/icon.svg` },
+    { "@type": "WebSite", name: APP_NAME, url: SITE_URL, description: SITE_DESCRIPTION },
+    {
+      "@type": "WebApplication",
+      name: APP_NAME,
+      url: SITE_URL,
+      applicationCategory: "FinanceApplication",
+      operatingSystem: "Web",
+      description: `${TAGLINE} ${SITE_DESCRIPTION}`,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+    },
+  ],
+};
+
 export default function Landing() {
   return (
     <div className="overflow-x-clip">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD).replace(/</g, "\\u003c") }} />
       <header className="sticky top-0 z-30 border-b border-line/70 bg-bg/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-[1080px] items-center justify-between gap-6 px-4 sm:px-8">
           <Logo />
@@ -82,7 +115,8 @@ export default function Landing() {
         {/* Hook: what it is, in dollars */}
         <section className="mx-auto grid max-w-[1080px] items-center gap-14 px-4 pb-20 pt-14 sm:px-8 md:pt-24 lg:grid-cols-[1fr_1fr]">
           <div>
-            <h1 className="text-[44px] leading-[1.04] tracking-display sm:text-[64px]">Buy $1,000 of ETH with $100.</h1>
+            <span className="eyebrow">Decentralised prop trading</span>
+            <h1 className="mt-3 text-[44px] leading-[1.04] tracking-display sm:text-[64px]">Buy $1,000 of ETH with $100.</h1>
             <p className="mt-6 max-w-[42ch] text-lg text-muted">
               Fulcrum lends you the other $900 from a vault of USDC lenders. Win, and you keep most of the profit. Lose, and you
               lose only your $100.
