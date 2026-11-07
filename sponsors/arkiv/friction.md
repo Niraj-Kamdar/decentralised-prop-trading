@@ -32,6 +32,7 @@ Our trader dataset is 137 KiB gzipped. We split it into `part`/`parts` entities 
 - **Ask:** an address-paste faucet (rate-limited per address and IP) and a programmatic way to issue access keys, for CI pipelines that publish data.
 
 ## 7. Small things
+- **SDK wire format for `bytes()` and `dec()`**: `bytes()` values return from queries as `"0x..."` hex strings (not `Uint8Array`), and `dec()` values return as strings (e.g. `"0"`, `"0.205714"`), while `u64()` returns as `bigint`. A note in the docs or typed decoding helpers would help consumers avoid wire-format surprises.
 - **Results expire after at most ~182.5 days.** For long-lived public records (audits, reports) a "renew before expiry" helper or scheduled extension would help. We'll need a cron job.
 - **The no-access-key warning only shows at runtime** (`Rabdi: no access key ... heavily rate limited`). Saying so on the network page next to the RPC URL would save a debugging round.
 - **`ExpirationTime.fromDays(180)` worked first time; `defineSchema` + typed `select` was the best part of the SDK.** Writes and owner-filtered reads were straightforward once we had the right version.
