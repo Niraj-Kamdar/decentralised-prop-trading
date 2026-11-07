@@ -9,7 +9,7 @@ import { AmountInput, Notice, Row, Segmented, Toggle } from "@/components/ui";
 import { borrowCapacity, exposureHeadroom, tierParams, useProtocol } from "@/hooks/useProtocol";
 import { useTx } from "@/hooks/useTx";
 import { approveIfNeeded, useUsdcBalance } from "@/hooks/useUsdc";
-import { arc, CONTRACTS, TIERS, TRADING_CONFIGURED, USDC, type Asset } from "@/lib/config";
+import { chain, CONTRACTS, TIERS, TRADING_CONFIGURED, USDC, type Asset } from "@/lib/config";
 import { parseUsdc, pct, price, toUsdc, usd } from "@/lib/format";
 import { epochFee } from "@/lib/math";
 import { prepareOpen, tokensForUsdc } from "@/lib/trade";
@@ -18,7 +18,7 @@ import { quoteExactIn } from "@/lib/uniswap";
 const SLIPPAGES = [30, 50, 100] as const;
 const PRESETS = ["5", "10"];
 
-/** `price18` is the 10-minute TWAP (null while the oracle warms up); entries are checked against it on-chain. */
+/** `price18` is the Chainlink price (null while the oracle warms up); entries are checked against it on-chain. */
 export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint | null }) {
   const { isConnected } = useAccount();
   const client = usePublicClient();
@@ -103,7 +103,7 @@ export function OrderPanel({ asset, price18 }: { asset: Asset; price18?: bigint 
             functionName: "openPosition",
             args: [prep.args],
             account: walletClient.account!,
-            chain: arc,
+            chain,
           });
         },
       },

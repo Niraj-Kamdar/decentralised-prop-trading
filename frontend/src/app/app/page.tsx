@@ -10,7 +10,7 @@ import { usePrices } from "@/hooks/usePrices";
 import { borrowCapacity, tierParams, useProtocol } from "@/hooks/useProtocol";
 import { useTx } from "@/hooks/useTx";
 import { useUsdcBalance } from "@/hooks/useUsdc";
-import { arc, assetByAddress, CONTRACTS } from "@/lib/config";
+import { chain, assetByAddress, CONTRACTS } from "@/lib/config";
 import { pct, price, timeLeft, toUsdc, usd } from "@/lib/format";
 import { positionView } from "@/lib/positionView";
 
@@ -75,7 +75,7 @@ export default function Dashboard() {
                           abi: pmAbi,
                           functionName: "claimTraderPayout",
                           account: walletClient!.account!,
-                          chain: arc,
+                          chain,
                         }),
                     },
                   ])
@@ -88,7 +88,7 @@ export default function Dashboard() {
 
           <div className="grid gap-4 md:grid-cols-3">
             <div className="card p-5">
-              <Stat label="Wallet" value={balance !== undefined ? usd(balance) : "—"} sub="USDC on Arc, also used for gas" />
+              <Stat label="Wallet" value={balance !== undefined ? usd(balance) : "—"} sub="USDC on Base" />
             </div>
             <div className="card p-5">
               <Stat

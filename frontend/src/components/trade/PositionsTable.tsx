@@ -9,7 +9,7 @@ import { usePrices } from "@/hooks/usePrices";
 import { tierParams, useProtocol } from "@/hooks/useProtocol";
 import { useTx } from "@/hooks/useTx";
 import { approveIfNeeded } from "@/hooks/useUsdc";
-import { addressUrl, arc, assetByAddress, CONTRACTS, type Asset } from "@/lib/config";
+import { addressUrl, chain, assetByAddress, CONTRACTS, type Asset } from "@/lib/config";
 import { dateTime, parseUsdc, price, timeLeft, toUsdc, usd } from "@/lib/format";
 import { positionView } from "@/lib/positionView";
 import { prepareExit } from "@/lib/trade";
@@ -153,7 +153,7 @@ function AutoRollToggle({ pos }: { pos: Position }) {
                 functionName: "setAutoRollover",
                 args: [pos.id, !pos.autoRollover],
                 account: walletClient!.account!,
-                chain: arc,
+                chain,
               }),
           },
         ])
@@ -196,7 +196,7 @@ function CloseModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onCl
             functionName: "closePosition",
             args: [pos.id, prep.minAmountOut],
             account: walletClient.account!,
-            chain: arc,
+            chain,
           });
         },
       },
@@ -246,7 +246,7 @@ function MarginModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onC
             functionName: "addMargin",
             args: [pos.id, value],
             account: walletClient.account!,
-            chain: arc,
+            chain,
           }),
       },
     ]);
@@ -298,7 +298,7 @@ function OrdersModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onC
             functionName: "setOrders",
             args: [pos.id, parse(sl), parse(tp), parse(trail)],
             account: walletClient.account!,
-            chain: arc,
+            chain,
           }),
       },
     ]);

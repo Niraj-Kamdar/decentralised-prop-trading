@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import type { Hash } from "viem";
 import { useAccount, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
 import { useToast } from "@/components/Toast";
-import { arc } from "@/lib/config";
+import { chain } from "@/lib/config";
 import { explainError } from "@/lib/errors";
 
 /**
@@ -30,7 +30,7 @@ export function useTx() {
       setBusy(true);
       let id: number | null = null;
       try {
-        if (chainId !== arc.id) await switchChainAsync({ chainId: arc.id });
+        if (chainId !== chain.id) await switchChainAsync({ chainId: chain.id });
         for (const step of steps) {
           id = push({ kind: "info", title: step.title, body: "Confirm in your wallet…" });
           const hash = await step.send();

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { useUsdcBalance } from "@/hooks/useUsdc";
-import { addressUrl, arc } from "@/lib/config";
+import { addressUrl, chain } from "@/lib/config";
 import { shortAddr, usd } from "@/lib/format";
 
 export function ConnectButton() {
@@ -25,10 +25,10 @@ export function ConnectButton() {
 
   if (!mounted) return <div className="h-9 w-32" />;
 
-  if (isConnected && chainId !== arc.id) {
+  if (isConnected && chainId !== chain.id) {
     return (
-      <button className="btn bg-warn text-white hover:bg-warn/90" onClick={() => switchChain({ chainId: arc.id })}>
-        Switch to {arc.name}
+      <button className="btn bg-warn text-white hover:bg-warn/90" onClick={() => switchChain({ chainId: chain.id })}>
+        Switch to {chain.name}
       </button>
     );
   }
@@ -72,7 +72,7 @@ export function ConnectButton() {
               key={c.uid}
               className="btn-ghost w-full justify-start"
               onClick={() => {
-                connect({ connector: c, chainId: arc.id });
+                connect({ connector: c, chainId: chain.id });
                 setOpen(false);
               }}
             >
@@ -80,7 +80,7 @@ export function ConnectButton() {
             </button>
           ))}
           {error && <p className="px-2 py-1 text-xs text-down">{error.message.split("\n")[0]}</p>}
-          <p className="px-2 pt-2 text-xs text-muted">You'll need USDC on Arc. It's also used to pay gas.</p>
+          <p className="px-2 pt-2 text-xs text-muted">You need USDC on Base, plus a little ETH for gas.</p>
         </div>
       )}
     </div>

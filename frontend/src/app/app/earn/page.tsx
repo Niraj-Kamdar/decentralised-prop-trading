@@ -9,7 +9,7 @@ import { useLP, type LPState } from "@/hooks/useLP";
 import { useProtocol, type ProtocolState } from "@/hooks/useProtocol";
 import { useTx } from "@/hooks/useTx";
 import { approveIfNeeded, useUsdcBalance } from "@/hooks/useUsdc";
-import { arc, CONTRACTS } from "@/lib/config";
+import { chain, CONTRACTS } from "@/lib/config";
 import { dateTime, parseUsdc, pct, timeLeft, toUsdc, usd } from "@/lib/format";
 
 export default function EarnPage() {
@@ -110,7 +110,7 @@ function YourPosition({ lp, connected }: { lp?: LPState; connected: boolean }) {
                       functionName: "withdraw",
                       args: [lp.claimableAssets, address!, address!],
                       account: walletClient!.account!,
-                      chain: arc,
+                      chain,
                     }),
                 },
               ])
@@ -157,7 +157,7 @@ function DepositWithdraw({ proto, lp }: { proto?: ProtocolState; lp?: LPState })
               functionName: useBonus ? "depositWithBonus" : "deposit",
               args: [value, address],
               account: walletClient.account!,
-              chain: arc,
+              chain,
             }),
         },
       ]);
@@ -175,7 +175,7 @@ function DepositWithdraw({ proto, lp }: { proto?: ProtocolState; lp?: LPState })
               functionName: "requestRedeem",
               args: [shares, address, address],
               account: walletClient.account!,
-              chain: arc,
+              chain,
             }),
         },
       ]);
@@ -254,7 +254,7 @@ function Requests({ lp, proto }: { lp?: LPState; proto?: ProtocolState }) {
       functionName,
       args: [arg],
       account: walletClient!.account!,
-      chain: arc,
+      chain,
     });
 
   return (
@@ -354,7 +354,7 @@ function Tickets({ lp }: { lp?: LPState }) {
                           functionName: matured ? "claimTicket" : "breakTicket",
                           args: [t.id],
                           account: walletClient!.account!,
-                          chain: arc,
+                          chain,
                         }),
                     },
                   ])
