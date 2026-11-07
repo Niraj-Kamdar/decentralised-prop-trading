@@ -6,10 +6,7 @@
     "build": "node script/foundry.mjs forge build --sizes",
     "test": "node script/foundry.mjs forge test -vv",
     "test:fork": "BASE_RPC_URL=${BASE_RPC_URL:-https://mainnet.base.org} node script/foundry.mjs forge test --match-path 'test/fork/BaseFork.t.sol' -vv",
-    "fmt": "node script/foundry.mjs forge fmt",
-    "fork": "bash script/fork/fork.sh",
-    "fork:move": "bash script/fork/move-price.sh",
-    "fork:warp": "bash script/fork/warp.sh"
+    "fmt": "node script/foundry.mjs forge fmt"
   },
   "devDependencies": {
     "@foundry-rs/anvil": "1.7.1",

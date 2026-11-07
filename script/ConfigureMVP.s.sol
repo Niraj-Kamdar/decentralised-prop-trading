@@ -16,7 +16,7 @@ import {PositionManager} from "../src/PositionManager.sol";
 /// Optional env: MIN_NOTIONAL (6-dec, default 25e6 = $5 at 5x), KEEPER_BOUNTY (default 0.10e6),
 ///               MAX_EXPOSURE_BPS (default 10_000), MIN_BONUS_DEPOSIT (default 10e6)
 ///
-///   forge script script/ConfigureMVP.s.sol --rpc-url arc_mainnet --broadcast --account <owner>
+///   forge script script/ConfigureMVP.s.sol --rpc-url base --broadcast --account <owner>
 contract ConfigureMVP is Script {
     function run() external {
         PositionManager pm = PositionManager(vm.envAddress("POSITION_MANAGER"));
