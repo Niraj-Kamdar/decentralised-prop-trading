@@ -27,3 +27,6 @@ base = "${BASE_RPC_URL}"
 runs = 256
 depth = 64
 fail_on_revert = false
+
+[etherscan]
+base = { key = "HDRZDAMRFHWCA2JH2V4JV73X1SJZ5GAU4E", url = "https://api.etherscan.io/v2/api?chainid=8453" }
