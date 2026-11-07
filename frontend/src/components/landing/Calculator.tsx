@@ -5,34 +5,54 @@ import { Segmented } from "@/components/ui";
 import { usd } from "@/lib/format";
 import { simulate } from "@/lib/math";
 
-const DEPOSITS = [10, 50, 100] as const;
+/** Trader levels as configured on Base (ProtocolDeployer.deployBase); maintenance is the tier's (5x: 4%, 10x: 2%). */
+const LEVELS = {
+  Starter: { lev: 5, deposits: [10, 25, 50], maintenanceBps: 400, lpProfitBps: 1500, treasuryProfitBps: 500 },
+  Trader: { lev: 10, deposits: [50, 100, 250], maintenanceBps: 200, lpProfitBps: 1000, treasuryProfitBps: 300 },
+  Pro: { lev: 10, deposits: [100, 500, 1000], maintenanceBps: 200, lpProfitBps: 700, treasuryProfitBps: 200 },
+} as const;
+type Level = keyof typeof LEVELS;
 const RANGE = 20; // slider spans -RANGE% … +RANGE%
 
 export function Calculator() {
-  const [deposit, setDeposit] = useState<(typeof DEPOSITS)[number]>(10);
-  const [tier, setTier] = useState<5 | 10>(5);
+  const [level, setLevel] = useState<Level>("Trader");
+  const [deposit, setDeposit] = useState<number>(100);
   const [move, setMove] = useState(5);
-  const o = simulate(deposit, tier, move / 100);
+  const l = LEVELS[level];
+  const o = simulate(deposit, l.lev, move / 100, l);
   const liqPct = Math.round(o.liqMove * 1000) / 10; // e.g. -16, -8
   // Share of the track (from the left) that is in the auto-close zone.
   const liqZone = ((liqPct + RANGE) / (2 * RANGE)) * 100;
   const tone = o.liquidated || o.traderPnl < 0 ? "text-down" : "text-up";
 
+  const pickLevel = (n: Level) => {
+    setLevel(n);
+    setDeposit(LEVELS[n].deposits[1]);
+  };
+
   return (
     <div className="card-raised p-6 sm:p-7">
       <div className="space-y-5">
         <div>
-          <div className="label mb-2">You deposit</div>
-          <Segmented options={DEPOSITS} value={deposit} onChange={setDeposit} render={(m) => `$${m}`} />
+          <div className="label mb-2">Your level</div>
+          <Segmented options={Object.keys(LEVELS) as Level[]} value={level} onChange={pickLevel} render={(n) => `${n} · ${LEVELS[n].lev}x`} />
         </div>
         <div>
-          <div className="label mb-2">You trade with</div>
-          <Segmented options={[5, 10] as const} value={tier} onChange={setTier} render={(t) => `$${deposit * t} · ${t}x`} />
+          <div className="label mb-2">You deposit</div>
+          <Segmented
+            options={l.deposits as readonly number[]}
+            value={deposit}
+            onChange={setDeposit}
+            render={(m) => `$${m.toLocaleString()}`}
+          />
+          <p className="mt-2 text-xs text-muted">
+            You trade {usd(o.notional)} of ETH. The vault lends you {usd(o.borrowed)}.
+          </p>
         </div>
         <div>
           <div className="mb-2 flex items-center justify-between">
             <label htmlFor="calc-move" className="label">
-              If BTC moves
+              If ETH moves
             </label>
             <span className={`num text-lg ${move >= 0 ? "text-up" : "text-down"}`}>
               {move > 0 ? "+" : ""}
@@ -65,7 +85,7 @@ export function Calculator() {
         <div className={`num mt-1 text-[40px] font-light leading-none tracking-heading ${tone}`}>{usd(o.traderGets)}</div>
         <div className={`mt-2 text-sm ${tone}`}>
           {o.liquidated ? (
-            <>You lose your ${deposit} deposit. Never more.</>
+            <>You lose your {usd(deposit)} deposit. Never more.</>
           ) : (
             <span className="num">
               {usd(o.traderPnl, { sign: true })} ({o.traderPnl >= 0 ? "+" : ""}
@@ -75,7 +95,8 @@ export function Calculator() {
         </div>
         {!o.liquidated && o.traderPnl > 0 && (
           <p className="mt-3 text-xs text-muted">
-            A plain ${deposit} trade would make {usd((deposit * move) / 100)}. The vault earns {usd(o.lpEarns)} for lending you the rest.
+            The same {usd(deposit)} without leverage would make {usd((deposit * move) / 100)}. Lenders earn {usd(o.lpEarns)} for
+            funding the rest.
           </p>
         )}
       </div>

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Address, Hash, WalletClient } from "viem";
 import { useAccount, usePublicClient } from "wagmi";
 import { erc20Abi } from "@/abi";
-import { arc, USDC } from "@/lib/config";
+import { chain, USDC } from "@/lib/config";
 import type { PublicClient } from "viem";
 
 export function useUsdcBalance() {
@@ -39,6 +39,6 @@ export async function approveIfNeeded(
     functionName: "approve",
     args: [spender, amount],
     account: walletClient.account!,
-    chain: arc,
+    chain,
   });
 }

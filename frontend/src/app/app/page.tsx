@@ -7,16 +7,17 @@ import { Empty, Row, Stat } from "@/components/ui";
 import { useLP } from "@/hooks/useLP";
 import { useClaimable, usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
-import { borrowCapacity, tierParams, useProtocol } from "@/hooks/useProtocol";
+import { borrowCapacity, tierParams, useProtocol, useTraderStats } from "@/hooks/useProtocol";
 import { useTx } from "@/hooks/useTx";
 import { useUsdcBalance } from "@/hooks/useUsdc";
-import { arc, assetByAddress, CONTRACTS } from "@/lib/config";
+import { chain, assetByAddress, CONTRACTS } from "@/lib/config";
 import { pct, price, timeLeft, toUsdc, usd } from "@/lib/format";
 import { positionView } from "@/lib/positionView";
 
 export default function Dashboard() {
   const { isConnected } = useAccount();
   const { data: proto } = useProtocol();
+  const level = useTraderStats().data?.level ?? 0;
   const { data: positions } = usePositions();
   const { data: lp } = useLP();
   const { data: balance } = useUsdcBalance();
@@ -27,7 +28,7 @@ export default function Dashboard() {
   const open = positions?.filter((p) => p.status === "OPEN") ?? [];
   const views = open.map((p) => {
     const a = assetByAddress(p.spotToken);
-    return { p, a, v: positionView(p, a?.decimals ?? 18, a ? (get(a.address)?.twap18 ?? undefined) : undefined, tierParams(proto, p.tier)) };
+    return { p, a, v: positionView(p, a?.decimals ?? 18, a ? (get(a.address)?.twap18 ?? undefined) : undefined, tierParams(proto, p.tier, level)) };
   });
   const totalMargin = open.reduce((s, p) => s + toUsdc(p.userMargin), 0);
   const totalPnl = views.reduce((s, x) => s + (x.v.pnl ?? 0), 0);
@@ -75,7 +76,7 @@ export default function Dashboard() {
                           abi: pmAbi,
                           functionName: "claimTraderPayout",
                           account: walletClient!.account!,
-                          chain: arc,
+                          chain,
                         }),
                     },
                   ])
@@ -88,7 +89,7 @@ export default function Dashboard() {
 
           <div className="grid gap-4 md:grid-cols-3">
             <div className="card p-5">
-              <Stat label="Wallet" value={balance !== undefined ? usd(balance) : "—"} sub="USDC on Arc, also used for gas" />
+              <Stat label="Wallet" value={balance !== undefined ? usd(balance) : "—"} sub="USDC on Base" />
             </div>
             <div className="card p-5">
               <Stat

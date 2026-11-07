@@ -9,6 +9,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 import {LPVault} from "../../src/LPVault.sol";
 import {PositionManager} from "../../src/PositionManager.sol";
+import {TraderProxy} from "../../src/TraderProxy.sol";
 import {InsuranceReserve} from "../../src/InsuranceReserve.sol";
 import {UniV4TwapOracle} from "../../src/UniV4TwapOracle.sol";
 import {ChainlinkOracle, AggregatorV3Interface} from "../../src/ChainlinkOracle.sol";
@@ -80,6 +81,8 @@ library ProtocolDeployer {
 
         d.vault.setPositionManager(address(d.pm));
         d.insurance.setPositionManager(address(d.pm));
+        TraderProxy proxyImpl = new TraderProxy(address(d.pm));
+        d.pm.setProxyImplementation(address(proxyImpl));
         d.pm.setSwapRouter(address(d.router));
         // Spot long on ETH and BTC only.
         d.pm.setAsset(ArcMainnet.WETH, true, 3_500, 2_000);
@@ -160,6 +163,8 @@ library ProtocolDeployer {
 
         d.vault.setPositionManager(address(d.pm));
         d.insurance.setPositionManager(address(d.pm));
+        TraderProxy proxyImpl = new TraderProxy(address(d.pm));
+        d.pm.setProxyImplementation(address(proxyImpl));
         d.pm.setSwapRouter(address(d.router));
 
         d.pm.setRiskParams(800, 8_000, 50e6, 0.5e6, 100, 100, 200);

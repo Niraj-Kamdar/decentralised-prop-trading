@@ -8,6 +8,7 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import {LPVault} from "../src/LPVault.sol";
 import {PositionManager} from "../src/PositionManager.sol";
+import {TraderProxy} from "../src/TraderProxy.sol";
 import {InsuranceReserve} from "../src/InsuranceReserve.sol";
 import {ILPVault, IInsuranceReserve, IOracle} from "../src/interfaces/IProtocol.sol";
 import {MockUSDC, MockToken, MockMetaMorpho, MockOracle, MockRouter} from "./mocks/Mocks.sol";
@@ -102,6 +103,8 @@ abstract contract BaseTest is Test {
                 )
             )
         );
+        TraderProxy proxyImpl = new TraderProxy(address(deployed));
+        deployed.setProxyImplementation(address(proxyImpl));
         deployed.setLevel(
             0,
             PositionManager.LevelConfig({

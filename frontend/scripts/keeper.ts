@@ -29,7 +29,7 @@ async function main() {
   const { createPublicClient, createWalletClient, http, formatUnits } = await import("viem");
   const { privateKeyToAccount } = await import("viem/accounts");
   const { pmAbi, vaultAbi } = await import("../src/abi");
-  const { arc, ASSETS, CONTRACTS, RPC_URL, assetByAddress, PROTOCOL_CONFIGURED } = await import("../src/lib/config");
+  const { chain, ASSETS, CONTRACTS, RPC_URL, assetByAddress, PROTOCOL_CONFIGURED } = await import("../src/lib/config");
   const { readOraclePrices, priceOf } = await import("../src/lib/oracle");
   const { valueInUsdc } = await import("../src/lib/trade");
 
@@ -38,12 +38,12 @@ async function main() {
   if (!PROTOCOL_CONFIGURED) throw new Error("Contract addresses are not configured (NEXT_PUBLIC_*)");
 
   const account = privateKeyToAccount(pk);
-  const pc = createPublicClient({ chain: arc, transport: http(RPC_URL) });
-  const wc = createWalletClient({ chain: arc, transport: http(RPC_URL), account });
+  const pc = createPublicClient({ chain, transport: http(RPC_URL) });
+  const wc = createWalletClient({ chain, transport: http(RPC_URL), account });
   const pm = { address: CONTRACTS.positionManager, abi: pmAbi } as const;
   const log = (...a: unknown[]) => console.log(new Date().toISOString(), ...a);
   const short = (e: unknown) => (e instanceof Error ? e.message.split("\n")[0] : String(e));
-  log(`keeper ${account.address} on ${arc.name} (${arc.id}) via ${RPC_URL}`);
+  log(`keeper ${account.address} on ${chain.name} (${chain.id}) via ${RPC_URL}`);
 
   // ------------------------------------------------------------------ Positions and LP queue
   const open = new Set<bigint>();
@@ -97,7 +97,7 @@ async function main() {
       if (!fn) continue;
 
       try {
-        // minAmountOut = 0: the contract still enforces its floor (TWAP mark minus the allowed slippage). If the
+        // minAmountOut = 0: the contract still enforces its floor (oracle mark minus the allowed slippage). If the
         // pool is below that floor the simulation reverts and we retry on the next tick.
         const { request } = await pc.simulateContract({ ...pm, functionName: fn, args: [id, 0n], account });
         const hash = await wc.writeContract(request);

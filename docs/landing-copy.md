@@ -210,7 +210,7 @@ Nobody. The contract pays you when you close and updates your level automaticall
 - No "guaranteed", "risk-free" or "safe". Say "lenders are paid first" and show the stress number.
 
 ## Open questions for the team
-1. **Chain:** the current page says "USDC on Arc", but PR #10 targets Base mainnet. This draft says Base. Confirm.
+1. **Chain:** *Resolved: Base mainnet. The page and app say Base.*
 2. **Stress figure:** *Resolved in run `df74b20`: lender loss is $0 in all 7 crashes in every scenario, so the figure below no longer applies; kept for history.* The old `0.49%` was COVID's $4,933 loss on a $1M vault. That number was **after** insurance: the sim pays shortfalls from insurance first (`cover = min(shortfall, insurance)` in `model.py`), and only the rest is lender loss. But every crash replay starts with **insurance = $0** (`crash_job(..., insurance=0.0, ...)` in `export.py`), so in the replay there's nothing to cover it. That's a deliberate worst case, not what a running vault would see. The 6.8-year headline run builds insurance up to ~$64k, which would cover Oct-10 ($2,623) easily. COVID came 2.5 months after the run starts, so the fund would be small there. **Fix before quoting it:** in the PR #10 re-run, seed each crash replay with the insurance balance the headline run had on that date, and report both numbers (empty fund vs. realistic fund). Also check against the new Chainlink feed-outage stress.
 3. **Position count:** the Arkiv docs say both 6,967 trades and 7,036 positions. Pick one (I think 7,036 is the full dataset and 6,967 is ETH/BTC closed). Then bind it to Arkiv.
 4. **Free first week:** still true after PR #10? (Rollover is 8% APR; check whether the free period survived.)

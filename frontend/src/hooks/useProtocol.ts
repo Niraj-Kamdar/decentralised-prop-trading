@@ -1,11 +1,23 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { usePublicClient } from "wagmi";
+import { useAccount, usePublicClient } from "wagmi";
 import { insuranceAbi, pmAbi, vaultAbi } from "@/abi";
 import { ASSETS, CONTRACTS, PROTOCOL_CONFIGURED, TIERS } from "@/lib/config";
 import { DEFAULT_TIERS, type TierParams } from "@/lib/math";
 import { zeroAddress } from "viem";
+
+export type Level = {
+  enabled: boolean;
+  maxLeverage: number;
+  maxMargin: bigint;
+  lpProfitBps: number;
+  treasuryProfitBps: number;
+  promoteMinTrades: number;
+  promoteMinPnl: bigint;
+  demoteMaxLoss: bigint;
+};
+export const LEVEL_NAMES = ["Starter", "Trader", "Pro"] as const;
 
 export type ProtocolState = {
   vault: {
@@ -39,7 +51,8 @@ export type ProtocolState = {
     maxExitSlippageBps: number;
     positionCount: bigint;
     openPositionCount: bigint;
-    tiers: Record<number, TierParams & { enabled: boolean }>;
+    tiers: Record<number, { enabled: boolean; maintenanceBps: number }>;
+    levels: Level[];
     assets: Record<string, { enabled: boolean; maxExposureBps: number; exposure: bigint }>;
   };
   insurance: bigint;
@@ -105,7 +118,7 @@ export function useProtocol() {
         { ...p, functionName: "openPositionCount" },
       ] as const;
 
-      const [vr, pr, tierR, assetR, expR, ins] = await Promise.all([
+      const [vr, pr, tierR, assetR, expR, ins, lvlR] = await Promise.all([
         client!.multicall({ contracts: vaultCalls, allowFailure: false }),
         client!.multicall({ contracts: pmCalls, allowFailure: false }),
         client!.multicall({
@@ -123,12 +136,16 @@ export function useProtocol() {
         CONTRACTS.insurance === zeroAddress
           ? Promise.resolve(0n)
           : client!.readContract({ address: CONTRACTS.insurance, abi: insuranceAbi, functionName: "insurancePoolBalance" }),
+        client!.multicall({
+          contracts: LEVEL_NAMES.map((_, l) => ({ ...p, functionName: "levels", args: [l] }) as const),
+          allowFailure: false,
+        }),
       ]);
 
       const tiers: ProtocolState["pm"]["tiers"] = {};
       TIERS.forEach((t, i) => {
-        const [enabled, maintenanceBps, lpProfitBps, treasuryProfitBps] = tierR[i] as readonly [boolean, number, number, number];
-        tiers[t] = { enabled, maintenanceBps, lpProfitBps, treasuryProfitBps };
+        const [enabled, maintenanceBps] = tierR[i] as readonly [boolean, number];
+        tiers[t] = { enabled, maintenanceBps };
       });
       const assets: ProtocolState["pm"]["assets"] = {};
       tradable.forEach((a, i) => {
@@ -169,6 +186,11 @@ export function useProtocol() {
           openPositionCount: pr[7],
           tiers,
           assets,
+          levels: lvlR.map((r) => {
+            const [enabled, maxLeverage, maxMargin, lpProfitBps, treasuryProfitBps, promoteMinTrades, promoteMinPnl, demoteMaxLoss] =
+              r as readonly [boolean, number, bigint, number, number, number, bigint, bigint];
+            return { enabled, maxLeverage, maxMargin, lpProfitBps, treasuryProfitBps, promoteMinTrades, promoteMinPnl, demoteMaxLoss };
+          }),
         },
         insurance: ins as bigint,
       };
@@ -176,4 +198,33 @@ export function useProtocol() {
   });
 }
 
-export const tierParams = (s: ProtocolState | undefined, tier: number): TierParams => s?.pm.tiers[tier] ?? DEFAULT_TIERS[tier];
+/** Settlement params for a position: maintenance from its leverage tier, profit cuts from the trader's level. */
+export function tierParams(s: ProtocolState | undefined, tier: number, level = 0): TierParams {
+  const d = DEFAULT_TIERS[tier];
+  const l = s?.pm.levels[level];
+  return {
+    maintenanceBps: s?.pm.tiers[tier]?.maintenanceBps ?? d.maintenanceBps,
+    lpProfitBps: l?.lpProfitBps ?? d.lpProfitBps,
+    treasuryProfitBps: l?.treasuryProfitBps ?? d.treasuryProfitBps,
+  };
+}
+
+/** The connected wallet's trader level and progress since entering it. */
+export function useTraderStats() {
+  const client = usePublicClient();
+  const { address } = useAccount();
+  return useQuery({
+    queryKey: ["traderStats", address],
+    enabled: PROTOCOL_CONFIGURED && !!client && !!address,
+    refetchInterval: 15_000,
+    queryFn: async () => {
+      const [level, trades, pnl] = (await client!.readContract({
+        address: CONTRACTS.positionManager,
+        abi: pmAbi,
+        functionName: "traderStats",
+        args: [address!],
+      })) as readonly [number, number, bigint];
+      return { level, trades, pnl };
+    },
+  });
+}

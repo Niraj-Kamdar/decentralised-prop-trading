@@ -6,10 +6,10 @@ import { pmAbi } from "@/abi";
 import { AmountInput, Empty, Modal, Notice, Row, Segmented } from "@/components/ui";
 import type { Position } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
-import { tierParams, useProtocol } from "@/hooks/useProtocol";
+import { tierParams, useProtocol, useTraderStats } from "@/hooks/useProtocol";
 import { useTx } from "@/hooks/useTx";
 import { approveIfNeeded } from "@/hooks/useUsdc";
-import { addressUrl, arc, assetByAddress, CONTRACTS, type Asset } from "@/lib/config";
+import { addressUrl, chain, assetByAddress, CONTRACTS, type Asset } from "@/lib/config";
 import { dateTime, parseUsdc, price, timeLeft, toUsdc, usd } from "@/lib/format";
 import { positionView } from "@/lib/positionView";
 import { prepareExit } from "@/lib/trade";
@@ -47,6 +47,7 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 function OpenTable({ rows, loading }: { rows: Position[]; loading: boolean }) {
   const { get } = usePrices();
   const { data: proto } = useProtocol();
+  const level = useTraderStats().data?.level ?? 0;
   const [action, setAction] = useState<{ kind: "close" | "margin" | "orders"; pos: Position } | null>(null);
 
   if (loading) return <Empty>Loading positions…</Empty>;
@@ -68,7 +69,7 @@ function OpenTable({ rows, loading }: { rows: Position[]; loading: boolean }) {
           <tbody>
             {rows.map((pos) => {
               const asset = assetByAddress(pos.spotToken);
-              const v = positionView(pos, asset?.decimals ?? 18, asset ? get(asset.address)?.twap18 ?? undefined : undefined, tierParams(proto, pos.tier));
+              const v = positionView(pos, asset?.decimals ?? 18, asset ? get(asset.address)?.twap18 ?? undefined : undefined, tierParams(proto, pos.tier, level));
               const atRisk = v.health !== null && v.health < 0.25;
               return (
                 <tr key={pos.id.toString()} className="border-b border-line last:border-0 transition-colors hover:bg-panel2/60">
@@ -153,7 +154,7 @@ function AutoRollToggle({ pos }: { pos: Position }) {
                 functionName: "setAutoRollover",
                 args: [pos.id, !pos.autoRollover],
                 account: walletClient!.account!,
-                chain: arc,
+                chain,
               }),
           },
         ])
@@ -167,9 +168,10 @@ function AutoRollToggle({ pos }: { pos: Position }) {
 function CloseModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onClose: () => void }) {
   const { get } = usePrices();
   const { data: proto } = useProtocol();
+  const level = useTraderStats().data?.level ?? 0;
   const { run, busy, walletClient, publicClient } = useTx();
   const [slippage, setSlippage] = useState<number>(50);
-  const v = positionView(pos, asset.decimals, get(asset.address)?.twap18 ?? undefined, tierParams(proto, pos.tier));
+  const v = positionView(pos, asset.decimals, get(asset.address)?.twap18 ?? undefined, tierParams(proto, pos.tier, level));
 
   async function submit() {
     if (!walletClient || !publicClient) return;
@@ -184,10 +186,10 @@ function CloseModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onCl
             maxSlippageBps: proto?.pm.maxExitSlippageBps ?? 100,
             twap18: get(asset.address)?.twap18 ?? null,
           });
-          if (prep.mark === null) throw new Error("The price oracle is warming up. Try again in a few minutes.");
+          if (prep.mark === null) throw new Error("The Chainlink price is unavailable right now. Try again in a few minutes.");
           if (prep.poolBelowOracle) {
             throw new Error(
-              "The Uniswap pool is trading too far below the 10-minute average price to close safely right now. Try again when the pool recovers.",
+              "The Uniswap pool is trading too far below the Chainlink price to close safely right now. Try again when the pool recovers.",
             );
           }
           return walletClient.writeContract({
@@ -196,7 +198,7 @@ function CloseModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onCl
             functionName: "closePosition",
             args: [pos.id, prep.minAmountOut],
             account: walletClient.account!,
-            chain: arc,
+            chain,
           });
         },
       },
@@ -246,7 +248,7 @@ function MarginModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onC
             functionName: "addMargin",
             args: [pos.id, value],
             account: walletClient.account!,
-            chain: arc,
+            chain,
           }),
       },
     ]);
@@ -298,7 +300,7 @@ function OrdersModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onC
             functionName: "setOrders",
             args: [pos.id, parse(sl), parse(tp), parse(trail)],
             account: walletClient.account!,
-            chain: arc,
+            chain,
           }),
       },
     ]);
@@ -319,7 +321,7 @@ function OrdersModal({ pos, asset, onClose }: { pos: Position; asset: Asset; onC
         {field("Take profit", tp, setTp, `Close when ${asset.symbol} reaches or exceeds this price.`)}
         {field("Stop loss", sl, setSl, `Close when ${asset.symbol} falls to this price or lower.`)}
         {field("Trailing floor", trail, setTrail, "A stop you can raise as price moves up.")}
-        <p className="text-xs text-muted">Orders are executed by keeper bots when the 10-minute average price crosses them. Leave a field empty to clear it.</p>
+        <p className="text-xs text-muted">Orders are executed by keeper bots when the Chainlink price crosses them. Leave a field empty to clear it.</p>
         <button className="btn-primary w-full py-3" disabled={busy} onClick={submit}>
           {busy ? "Working…" : "Save orders"}
         </button>
