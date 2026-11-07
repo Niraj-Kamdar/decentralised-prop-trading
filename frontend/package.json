@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts",
+    "test": "tsx --conditions=react-server --test \"src/**/*.test.ts\"",
     "abi": "node scripts/extract-abis.mjs",
     "keeper": "tsx scripts/keeper.ts"
   },
   "dependencies": {
+    "@arkiv-network/sdk": "1.0.1",
     "@tanstack/react-query": "5.90.2",
     "lightweight-charts": "4.2.3",
     "next": "15.5.28",

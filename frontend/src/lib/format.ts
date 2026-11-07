@@ -29,7 +29,42 @@ export function price(n: number | undefined | null): string {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: decimals })}`;
 }
 
-export const pct = (bps: number | bigint, decimals = 1) => `${(Number(bps) / 100).toFixed(decimals)}%`;
+export function usd0(x: number | undefined | null): string {
+  if (x === undefined || x === null || !Number.isFinite(x)) return "—";
+  if (Math.abs(x) < 0.5) return "$0";
+  const rounded = Math.round(x);
+  const sign = rounded < 0 ? "-" : "";
+  return `${sign}$${Math.abs(rounded).toLocaleString("en-US")}`;
+}
+
+export function pct(x: number | bigint, digits = 1): string {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return "—";
+  const val = typeof x === "bigint" || (Number.isInteger(n) && Math.abs(n) >= 20)
+    ? n / 100
+    : n * 100;
+  return `${val.toFixed(digits)}%`;
+}
+
+export function histogram(values: number[], edges: number[]): number[] {
+  if (edges.length === 0) return [];
+  const bins = new Array(edges.length).fill(0);
+  for (const v of values) {
+    if (v < edges[0]) continue;
+    let placed = false;
+    for (let i = 0; i < edges.length - 1; i++) {
+      if (v >= edges[i] && v < edges[i + 1]) {
+        bins[i]++;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed && v >= edges[edges.length - 1]) {
+      bins[edges.length - 1]++;
+    }
+  }
+  return bins;
+}
 
 export function tokenAmount(v: bigint, decimals: number, max = 6): string {
   const n = Number(formatUnits(v, decimals));

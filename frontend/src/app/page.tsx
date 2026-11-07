@@ -1,54 +1,65 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Calculator } from "@/components/landing/Calculator";
+import { CrashTimeline, Endings, Flow, LeverBar, Levels } from "@/components/landing/Illustrations";
 import { WaitlistForm } from "@/components/landing/WaitlistForm";
 import { Logo } from "@/components/Logo";
 import { APP_NAME, SITE_DESCRIPTION, SITE_URL, TAGLINE } from "@/lib/config";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
-const STEPS = [
-  { n: "1", t: "Investors fund the vault", d: "Anyone can deposit USDC. That pool is what traders borrow from." },
-  { n: "2", t: "Traders borrow up to 10x", d: "Put in $10, trade with up to $100. Your deposit covers the first losses." },
-  { n: "3", t: "Close and get paid", d: "The contract splits the profit on the spot. Most of it goes to the trader." },
+// Backtest run 5847faa, as published to Arkiv. Swap for getBacktest() once /backtest (feat/backtest-page) merges.
+const PROOF = { apy: "12.46%", years: "6.8", trades: "6,967", crashes: 7, stressWorst: "0.49%" };
+
+const TRADER_POINTS = [
+  "Up to 10x on real ETH and BTC, not a synthetic perp",
+  "No funding fees. First week of borrowing is free, then 8% a year",
+  "Keep up to 91% of every win, paid the moment you close",
+  "The most you can lose is your deposit",
 ];
 
-const TRADER_POINTS = ["Trade with 5x or 10x your deposit", "Keep up to 90% of the profit", "Paid out the moment you close", "First week of borrowing is free"];
-
-const INVESTOR_POINTS = [
-  "Earn 8–12% of every winning trade",
-  "Traders' deposits take losses first",
+const LENDER_POINTS = [
+  "Earn 7–15% of every winning trade, plus borrowing fees",
+  "Traders' deposits and an insurance fund take losses before you",
+  `${PROOF.apy} a year in our ${PROOF.years}-year backtest`,
   "Withdraw any time, paid out within 30 days",
 ];
 
 const FAQ = [
   {
     q: "What is decentralised prop trading?",
-    a: "A prop firm gives traders capital and splits the profits. Here a smart contract does that job: investors fund an on-chain vault, traders borrow from it with up to 10x leverage, and profits are split automatically when a trade closes. No challenges, no evaluation fees, no payout reviews.",
+    a: "A prop firm gives traders capital and splits the profits. Here a smart contract does that job: lenders fund an on-chain vault, traders borrow from it with up to 10x leverage, and profits are split automatically when a trade closes. No challenges, no evaluation fees, no payout reviews.",
   },
   {
     q: "Is this like copy trading?",
-    a: "Close. Instead of copying one trader's moves, investors deposit USDC into a vault that funds every trader and earn a share of each winning trade. Traders' own deposits absorb losses first.",
+    a: "Close. Instead of copying one trader's moves, lenders deposit USDC into a vault that funds every trader and earn a share of each winning trade. Traders' own deposits absorb losses first.",
+  },
+  {
+    q: "Is this a perp?",
+    a: "No. When you open a trade, the contract buys real ETH or BTC with your deposit plus the vault's loan, and holds it until you close. There's no funding rate.",
   },
   {
     q: "Can I lose more than I put in?",
-    a: "No. The most you can lose is your deposit. Trades close automatically as losses approach it, but if the price drops suddenly you can still lose all of it.",
+    a: "No. Your deposit is the most you can lose. The contract closes your trade before losses pass it. In a very fast crash you can still lose all of it.",
   },
   {
-    q: "What happens if I keep losing?",
-    a: "Nothing yet. Later, repeated losses will lower an account's leverage and can get it blocked. To stop people dodging that with fresh wallets, we plan to add sybil resistance using on-chain zk-KYC or World ID.",
+    q: "Where does the loan come from?",
+    a: "From lenders who deposit USDC into the vault. They're paid back first on every close, then take a share of the profit.",
   },
   {
-    q: "Who decides if I get paid?",
-    a: "Nobody. The smart contract pays you when you close. There is no review and no approval.",
+    q: "What do lenders earn?",
+    a: `7–15% of each winning trade, depending on the trader's level, plus 80% of borrowing fees. Our backtest averaged ${PROOF.apy} a year.`,
   },
   {
-    q: "What does the vault earn?",
-    a: "8% of trader profit at 5x, 12% at 10x, plus borrowing fees after a trader's first free week.",
+    q: "Can lenders lose money?",
+    a: `Yes, if a crash is fast enough that a trader's deposit and the insurance fund can't cover it. In our backtest it never happened across ${PROOF.crashes} crashes. In our harshest stress test, with an empty insurance fund, the worst loss was ${PROOF.stressWorst}. All results are public on Arkiv.`,
   },
   {
-    q: "Can vault deposits lose money?",
-    a: "Yes, if trades go badly enough. Trader deposits and an insurance reserve absorb losses first, but returns aren't guaranteed.",
+    q: "How does Fulcrum make money?",
+    a: "A cut of profitable trades: 1% to 2.5% depending on the trader's level. An equal amount goes to the insurance fund.",
+  },
+  {
+    q: "Who decides if I get paid, or my level?",
+    a: "Nobody. The contract pays you when you close and updates your level automatically.",
   },
 ];
 
@@ -57,21 +68,6 @@ function Arrow({ className = "" }: { className?: string }) {
     <svg className={`h-3.5 w-3.5 shrink-0 ${className}`} viewBox="0 0 16 16" fill="none" aria-hidden>
       <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-function Points({ items }: { items: string[] }) {
-  return (
-    <ul className="space-y-2.5">
-      {items.map((p) => (
-        <li key={p} className="flex gap-3 text-fg2">
-          <svg className="mt-1.5 h-3.5 w-3.5 shrink-0 text-accent" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          {p}
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -105,7 +101,8 @@ export default function Landing() {
           <Logo />
           <nav className="hidden items-center gap-7 text-sm text-fg2 md:flex" aria-label="Sections">
             <a href="#how" className="transition-colors hover:text-accent">How it works</a>
-            <a href="#start" className="transition-colors hover:text-accent">Trade or earn</a>
+            <a href="#example" className="transition-colors hover:text-accent">Example</a>
+            <Link href="/backtest" className="transition-colors hover:text-accent">Backtest</Link>
             <a href="#faq" className="transition-colors hover:text-accent">FAQ</a>
           </nav>
           <Link href="/app/trade" className="btn-primary">
@@ -115,92 +112,159 @@ export default function Landing() {
       </header>
 
       <main>
-        {/* Hero: the pitch on the left, the product on the right */}
-        <section className="relative">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -top-40 left-1/2 h-[640px] w-[1200px] -translate-x-1/2 opacity-60 blur-3xl"
-            style={{
-              background:
-                "radial-gradient(40% 45% at 25% 40%, rgb(var(--accent) / 0.22), transparent 70%), radial-gradient(30% 35% at 75% 25%, rgb(234 34 97 / 0.14), transparent 70%)",
-            }}
-          />
-          <div className="relative mx-auto grid max-w-[1080px] items-center gap-12 px-4 pb-20 pt-14 sm:px-8 md:pt-20 lg:grid-cols-[1.1fr_1fr]">
-            <div>
-              <span className="eyebrow">Decentralised prop trading</span>
-              <h1 className="mt-3 text-[44px] leading-[1.04] tracking-display sm:text-[60px]">
-                Capital for traders.
-                <br />
-                <span className="text-accent">Returns for investors.</span>
-              </h1>
-              <p className="mt-6 max-w-[40ch] text-lg text-muted">
-                Trade with up to 10x your money. Or fund the traders and earn from every win.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/app/trade" className="btn-primary px-5 py-3 text-base">
-                  Start trading <Arrow />
-                </Link>
-                <Link href="/app/earn" className="btn-secondary px-5 py-3 text-base">
-                  Earn as an investor
-                </Link>
+        {/* Hook: what it is, in dollars */}
+        <section className="mx-auto grid max-w-[1080px] items-center gap-14 px-4 pb-20 pt-14 sm:px-8 md:pt-24 lg:grid-cols-[1fr_1fr]">
+          <div>
+            <span className="eyebrow">Decentralised prop trading</span>
+            <h1 className="mt-3 text-[44px] leading-[1.04] tracking-display sm:text-[64px]">Buy $1,000 of ETH with $100.</h1>
+            <p className="mt-6 max-w-[42ch] text-lg text-muted">
+              Fulcrum lends you the other $900 from a vault of USDC lenders. Win, and you keep most of the profit. Lose, and you
+              lose only your $100.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/app/trade" className="btn-primary px-5 py-3 text-base">
+                Start trading <Arrow />
+              </Link>
+              <Link href="/app/earn" className="btn-secondary px-5 py-3 text-base">
+                Earn as a lender
+              </Link>
+            </div>
+            <p className="mt-6 text-sm text-muted">USDC on Base. No sign-up, just a wallet.</p>
+          </div>
+          <LeverBar />
+        </section>
+
+        {/* Problem */}
+        <section className="border-t border-line bg-panel2">
+          <div className="mx-auto max-w-[1080px] px-4 py-20 sm:px-8">
+            <h2 className="max-w-[24ch] text-[32px] leading-tight">Leverage today is rented, not owned.</h2>
+            <div className="mt-10 grid gap-5 md:grid-cols-2">
+              <div className="card p-6">
+                <h3 className="text-xl">Traders pay to hold</h3>
+                <p className="mt-2 text-muted">
+                  Perps charge funding for as long as you stay in, and you never own the coin. The longer you hold, the more you pay.
+                </p>
+                <div className="mt-5 flex h-10 items-end gap-[3px]" aria-hidden>
+                  {Array.from({ length: 30 }, (_, i) => (
+                    <div key={i} className="flex-1 rounded-sm bg-down/70" style={{ height: `${12 + i * 3}%` }} />
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted">Total funding paid, day by day</p>
               </div>
-              <p className="mt-6 text-sm text-muted">Settled in USDC on Arc. No sign-up, just a wallet.</p>
+              <div className="card p-6">
+                <h3 className="text-xl">Lenders earn little</h3>
+                <p className="mt-2 text-muted">
+                  USDC in lending markets earns single digits, mostly from other lenders borrowing against the same collateral.
+                </p>
+                <div className="mt-5 flex h-10 gap-[3px]" aria-hidden>
+                  <div className="flex-1 rounded-sm bg-brand/15" />
+                  <div className="w-[5%] rounded-sm bg-up/70" />
+                </div>
+                <p className="mt-2 text-xs text-muted">Your USDC, and what it earns</p>
+              </div>
             </div>
-            <div className="lg:pl-4">
-              <Calculator />
-            </div>
+            <p className="mt-8 text-lg text-fg2">One side has conviction and no capital. The other has capital and nothing to back.</p>
           </div>
         </section>
 
         {/* How it works */}
-        <section id="how" className="scroll-mt-20 border-t border-line bg-panel2">
+        <section id="how" className="scroll-mt-20 border-t border-line">
           <div className="mx-auto max-w-[1080px] px-4 py-20 sm:px-8">
-            <span className="eyebrow">How it works</span>
-            <h2 className="mt-3 text-[32px] leading-tight">One vault, two sides.</h2>
-            <ol className="mt-10 grid gap-8 md:grid-cols-3">
-              {STEPS.map((s) => (
-                <li key={s.n}>
-                  <div className="num flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-sm text-accent">{s.n}</div>
-                  <h3 className="mt-4 text-xl">{s.t}</h3>
-                  <p className="mt-2 text-muted">{s.d}</p>
-                </li>
+            <h2 className="text-[32px] leading-tight">One vault connects them.</h2>
+            <div className="mt-10">
+              <Flow />
+            </div>
+            <p className="mt-8 text-lg text-fg2">Your deposit is the lever. The vault is the fulcrum.</p>
+          </div>
+        </section>
+
+        {/* Two endings */}
+        <section id="example" className="scroll-mt-20 border-t border-line bg-panel2">
+          <div className="mx-auto max-w-[1080px] px-4 py-20 sm:px-8">
+            <h2 className="text-[32px] leading-tight">One trade, two endings.</h2>
+            <p className="mt-3 max-w-[60ch] text-muted">$100 deposit at 10x: $900 borrowed, $1,000 of ETH. Here is where every dollar goes.</p>
+            <div className="mt-10">
+              <Endings />
+            </div>
+            <p className="mt-6 text-sm text-muted">
+              Example uses the Trader level. New wallets start at 5x with up to $50. If a crash moves too fast to close in time, the
+              insurance fund covers the gap before lenders do.
+            </p>
+          </div>
+        </section>
+
+        {/* Levels */}
+        <section className="border-t border-line">
+          <div className="mx-auto max-w-[1080px] px-4 py-20 sm:px-8">
+            <h2 className="text-[32px] leading-tight">Start small. Prove it. Unlock 10x.</h2>
+            <p className="mt-3 max-w-[60ch] text-muted">
+              Every wallet starts as a Starter. Winning moves you up and big losses move you down, automatically. Lenders take a bigger
+              cut from new traders and a smaller one from proven ones.
+            </p>
+            <div className="mt-10">
+              <Levels />
+            </div>
+          </div>
+        </section>
+
+        {/* Proof */}
+        <section id="proof" className="scroll-mt-20 border-t border-line bg-brand text-white">
+          <div className="mx-auto max-w-[1080px] px-4 py-20 sm:px-8">
+            <h2 className="text-[32px] leading-tight text-white">We replayed the 7 worst crashes since 2020.</h2>
+            <p className="mt-3 max-w-[62ch] text-white/75">
+              Minute by minute, through {PROOF.years} years of Binance prices and {PROOF.trades} real Hyperliquid trades. Every result is
+              published on Arkiv and signed by our wallet, so you can check it without trusting this page.
+            </p>
+            <dl className="mt-10 grid gap-6 sm:grid-cols-3">
+              {[
+                [PROOF.apy, "average lender APY"],
+                ["$0", `lender losses across ${PROOF.crashes} crashes`],
+                ["$0", "bad debt"],
+              ].map(([v, l]) => (
+                <div key={l}>
+                  <dd className="num text-[40px] leading-none text-white">{v}</dd>
+                  <dt className="mt-2 text-white/70">{l}</dt>
+                </div>
               ))}
-            </ol>
+            </dl>
+            <div className="mt-12 rounded-lg bg-white p-6 text-fg">
+              <CrashTimeline />
+            </div>
+            <p className="mt-6 max-w-[70ch] text-sm text-white/70">
+              In our harshest stress test (thin liquidity, every trader at 10x, keepers offline for 30 minutes and an empty insurance
+              fund), lenders lost {PROOF.stressWorst} in the worst crash. We show that too.
+            </p>
+            <Link href="/backtest" className="btn mt-8 bg-white px-5 py-3 text-base text-brand hover:bg-white/90">
+              See the full backtest <Arrow />
+            </Link>
           </div>
         </section>
 
         {/* Pick a side */}
         <section id="start" className="scroll-mt-20 border-t border-line">
           <div className="mx-auto grid max-w-[1080px] gap-5 px-4 py-20 sm:px-8 md:grid-cols-2">
-            <article className="card flex flex-col p-7 sm:p-8">
-              <span className="eyebrow">For traders</span>
-              <h2 className="mt-3 text-[28px] leading-tight">Trade bigger than your wallet.</h2>
-              <div className="mt-6">
-                <Points items={TRADER_POINTS} />
-              </div>
-              <Link href="/app/trade" className="btn-primary mt-8 self-start px-5 py-3 text-base">
-                Start trading <Arrow />
-              </Link>
-            </article>
-
-            <article className="flex flex-col rounded-xl bg-brand p-7 text-white sm:p-8">
-              <span className="eyebrow text-[#b9b9f9]">For investors</span>
-              <h2 className="mt-3 text-[28px] leading-tight text-white">Earn from traders, without trading.</h2>
-              <ul className="mt-6 space-y-2.5">
-                {INVESTOR_POINTS.map((p) => (
-                  <li key={p} className="flex gap-3 text-white/85">
-                    <svg className="mt-1.5 h-3.5 w-3.5 shrink-0 text-[#b9b9f9]" viewBox="0 0 16 16" fill="none" aria-hidden>
-                      <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    {p}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/app/earn" className="btn mt-8 self-start bg-white px-5 py-3 text-base text-brand hover:bg-white/90">
-                Deposit to the vault <Arrow />
-              </Link>
-              <p className="mt-auto pt-6 text-xs text-white/60">Deposits can lose value. Returns aren&apos;t guaranteed.</p>
-            </article>
+            {[
+              { h: "Trade bigger than your wallet.", pts: TRADER_POINTS, href: "/app/trade", cta: "Start trading" },
+              { h: "Earn from traders, without trading.", pts: LENDER_POINTS, href: "/app/earn", cta: "Deposit to the vault" },
+            ].map((c) => (
+              <article key={c.h} className="card flex flex-col p-7 sm:p-8">
+                <h2 className="text-[28px] leading-tight">{c.h}</h2>
+                <ul className="mt-6 space-y-2.5">
+                  {c.pts.map((p) => (
+                    <li key={p} className="flex gap-3 text-fg2">
+                      <svg className="mt-1.5 h-3.5 w-3.5 shrink-0 text-accent" viewBox="0 0 16 16" fill="none" aria-hidden>
+                        <path d="M3 8.5 6.5 12 13 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      {p}
+                    </li>
+                  ))}
+                </ul>
+                <Link href={c.href} className="btn-primary mt-8 self-start px-5 py-3 text-base">
+                  {c.cta} <Arrow />
+                </Link>
+              </article>
+            ))}
+            <p className="text-xs text-muted md:col-span-2">Backtests aren&apos;t guarantees. Vault deposits can lose value.</p>
           </div>
         </section>
 

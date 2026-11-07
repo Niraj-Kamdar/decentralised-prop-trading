@@ -5,3 +5,5 @@ broadcast/
 .env
 .fork/
 deployments/fork.json
+sim/data/
+__pycache__/
