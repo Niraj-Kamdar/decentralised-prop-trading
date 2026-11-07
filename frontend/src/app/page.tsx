@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Calculator } from "@/components/landing/Calculator";
 import { CrashTimeline, Endings, Flow, LeverBar, Levels } from "@/components/landing/Illustrations";
 import { WaitlistForm } from "@/components/landing/WaitlistForm";
 import { Logo } from "@/components/Logo";
@@ -134,6 +135,7 @@ export default async function Landing() {
           <nav className="hidden items-center gap-7 text-sm text-fg2 md:flex" aria-label="Sections">
             <a href="#how" className="transition-colors hover:text-accent">How it works</a>
             <a href="#example" className="transition-colors hover:text-accent">Example</a>
+            <a href="#calculator" className="transition-colors hover:text-accent">Calculator</a>
             <Link href="/backtest" className="transition-colors hover:text-accent">Backtest</Link>
             <a href="#faq" className="transition-colors hover:text-accent">FAQ</a>
           </nav>
@@ -236,6 +238,20 @@ export default async function Landing() {
             <div className="mt-10">
               <Levels />
             </div>
+          </div>
+        </section>
+
+        {/* Calculator */}
+        <section id="calculator" className="scroll-mt-20 border-t border-line bg-panel2">
+          <div className="mx-auto grid max-w-[1080px] items-center gap-12 px-4 py-20 sm:px-8 lg:grid-cols-[1fr_1fr]">
+            <div>
+              <h2 className="text-[32px] leading-tight">Try it with your numbers.</h2>
+              <p className="mt-3 max-w-[44ch] text-muted">
+                Pick your level and deposit, then drag the price. You see what you get back, where the trade auto-closes and what
+                lenders earn. Swap fees and slippage are left out.
+              </p>
+            </div>
+            <Calculator />
           </div>
         </section>
 
