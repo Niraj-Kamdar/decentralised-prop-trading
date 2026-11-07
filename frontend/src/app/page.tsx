@@ -11,7 +11,9 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 export const revalidate = 3600;
 
 // Shown only when Arkiv is unreachable: run df74b20, as published.
-const FALLBACK = { apy: "5.07%", years: "6.8", trades: "6,967", crashes: 7, stressWorstUsd: 0 };
+const FALLBACK = { apy: "10.2%", vault: "$86k", years: "6.8", trades: "6,967", crashes: 7, stressWorstUsd: 0 };
+// Headline APY: where lender supply settles when lenders ask for 10% (4.5% idle yield + 5.5% premium).
+const HURDLE_PREMIUM = "0.055";
 const STRESS = ["stress", "stress_outage_30m"];
 
 async function getProof() {
@@ -20,8 +22,10 @@ async function getProof() {
   const { headline, real_traders } = b.sections;
   const years = (Date.parse(headline.end) - Date.parse(headline.start)) / (365.25 * 864e5);
   const base = b.crashes.filter((c) => c.scenario === "base");
+  const eq = b.sections.lp_equilibrium?.calibrated?.[HURDLE_PREMIUM];
   return {
-    apy: pct(headline.apy, 2),
+    apy: eq ? pct(eq.apy.mean, 1) : pct(headline.apy, 2),
+    vault: eq ? `$${Math.round(eq.tvl_median_last_year.mean / 1000)}k` : "$1M",
     years: years.toFixed(1),
     trades: real_traders.sample.positions.toLocaleString("en-US"),
     crashes: base.length,
@@ -67,7 +71,7 @@ const faq = (PROOF: Awaited<ReturnType<typeof getProof>>) => [
   },
   {
     q: "What do lenders earn?",
-    a: `7–15% of each winning trade, depending on the trader's level, plus 80% of borrowing fees. Our backtest averaged ${PROOF.apy} a year.`,
+    a: `7–15% of each winning trade, depending on the trader's level, plus 80% of borrowing fees. In our backtest, lenders earned ${PROOF.apy} a year once deposits settled at the size real trader demand supports (${PROOF.vault}). Idle USDC earns lending yield on Morpho in the meantime.`,
   },
   {
     q: "Can lenders lose money?",
@@ -245,7 +249,7 @@ export default async function Landing() {
             </p>
             <dl className="mt-10 grid gap-6 sm:grid-cols-3">
               {[
-                [PROOF.apy, "average lender APY"],
+                [PROOF.apy, `lender APY, vault settles at ${PROOF.vault}`],
                 [usd0(Object.values(PROOF.loss).reduce((a, b) => a + b, 0)), `lender losses across ${PROOF.crashes} crashes`],
                 ["$0", "bad debt"],
               ].map(([v, l]) => (

@@ -10,6 +10,7 @@ export const SECTIONS = [
   "years",
   "money_map",
   "real_traders",
+  "lp_equilibrium",
 ] as const;
 
 export const SCENARIOS = ["base", "stress", "stress_outage_30m"] as const;
