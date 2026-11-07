@@ -146,6 +146,22 @@ if __name__ == "__main__":
           f"hold median {np.median(t['hold_h'][m]):.1f}h  notional median ${np.median(t['cost'][m]):,.0f}")
 
 
+def empirical(accts, edges_h=(1 / 6, 1, 6, 24, 168)):
+    """Real ETH/BTC long behaviour as arrays for model.Demand.emp: positions grouped by trader (lo:hi slices),
+    P(10x) from live open-position leverage, win rate by hold bucket, arrivals/day and share of new traders."""
+    t = table(accts)
+    m = t["closed"] & np.isin(t["coin"], ["ETH", "BTC"]) & (t["cost"] > 0)
+    o = np.argsort(t["user"][m], kind="stable")
+    cost, hold, btc, win = t["cost"][m][o], t["hold_h"][m][o], (t["coin"][m][o] == "BTC"), t["pnl"][m][o] > 0
+    _, lo = np.unique(t["user"][m][o], return_index=True)
+    b = np.searchsorted(edges_h, hold, "right")
+    lev = np.array([x[1] for x in leverage(accts) if x[0] in ("ETH", "BTC") and x[4]])
+    days = (t["t_open"][m].max() - t["t_open"][m].min()) / 8.64e7
+    return dict(cost=cost, hold_h=hold, btc=btc, lo=lo, hi=np.append(lo[1:], len(cost)), hold_edges_h=np.array(edges_h),
+                win_by_hold=np.array([win[b == i].mean() for i in range(len(edges_h) + 1)]),
+                p_10x=float((lev >= 10).mean()), per_day=len(cost) / days, p_new=len(lo) / len(cost))
+
+
 def replay(t, start, end, p, tvl=1e6, vol_x=50.0, p_10x=0.8, seed=0, insurance=0.0):
     """Replay real ETH/BTC long positions through a Fulcrum vault on Binance minutes [start, end).
 

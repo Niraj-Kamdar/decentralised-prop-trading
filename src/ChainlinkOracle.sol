@@ -18,6 +18,8 @@ interface AggregatorV3Interface {
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
 }
 
+interface AggregatorV2V3Interface is AggregatorV3Interface {}
+
 contract ChainlinkOracle is IOracle, Ownable2Step {
     struct Feed {
         AggregatorV3Interface aggregator;
@@ -30,19 +32,33 @@ contract ChainlinkOracle is IOracle, Ownable2Step {
     address public immutable usdc;
     uint8 public immutable usdcDecimals;
 
+    AggregatorV2V3Interface public sequencerUptimeFeed;
+    uint256 public sequencerGracePeriod;
+
     mapping(address asset => Feed) internal _feeds;
 
     event FeedSet(address indexed asset, AggregatorV3Interface aggregator, uint32 maxStaleness);
+    event SequencerUptimeFeedSet(address indexed feed, uint256 gracePeriod);
 
     error InvalidFeed();
     error FeedNotSet(address asset);
     error InvalidPrice(address asset, int256 answer);
     error StalePrice(address asset, uint256 updatedAt);
+    error RoundNotComplete(address asset, uint80 roundId, uint80 answeredInRound);
+    error SequencerDown();
+    error GracePeriodNotOver();
 
     constructor(address usdc_, address owner_) Ownable(owner_) {
         if (usdc_ == address(0) || owner_ == address(0)) revert InvalidFeed();
         usdc = usdc_;
         usdcDecimals = IERC20Metadata(usdc_).decimals();
+        sequencerGracePeriod = 3600;
+    }
+
+    function setSequencerUptimeFeed(address feed, uint256 gracePeriod) external onlyOwner {
+        sequencerUptimeFeed = AggregatorV2V3Interface(feed);
+        sequencerGracePeriod = gracePeriod;
+        emit SequencerUptimeFeedSet(feed, gracePeriod);
     }
 
     function setFeed(address asset, AggregatorV3Interface aggregator, uint32 maxStaleness, PoolKey calldata key)
@@ -74,8 +90,19 @@ contract ChainlinkOracle is IOracle, Ownable2Step {
         Feed storage f = _feeds[asset];
         if (address(f.aggregator) == address(0)) revert FeedNotSet(asset);
 
-        (, int256 answer,, uint256 updatedAt,) = f.aggregator.latestRoundData();
+        if (address(sequencerUptimeFeed) != address(0)) {
+            (, int256 seqStatus, uint256 startedAt,,) = sequencerUptimeFeed.latestRoundData();
+            if (seqStatus == 1) revert SequencerDown();
+            if (startedAt == 0 || block.timestamp < startedAt || block.timestamp - startedAt < sequencerGracePeriod) {
+                revert GracePeriodNotOver();
+            }
+        }
+
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = f.aggregator.latestRoundData();
         if (answer <= 0) revert InvalidPrice(asset, answer);
+        if (updatedAt == 0 || answeredInRound < roundId) {
+            revert RoundNotComplete(asset, roundId, answeredInRound);
+        }
         if (block.timestamp < updatedAt || block.timestamp - updatedAt > f.maxStaleness) {
             revert StalePrice(asset, updatedAt);
         }
