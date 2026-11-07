@@ -16,13 +16,13 @@ We answer both with a minute-by-minute backtest (6.8 years of Binance prices and
 
 All entities are written by **`0x8F24d5FF02c5FFaCDAa1741dC7a20d37f363f69d`** on the Rabdi testnet (chain id 7794095).
 
-Latest publish, run `df74b20@2026-11-07T01:03:27+00:00`:
+Latest publish, run `bf3cdb9@2026-11-07T02:13:17+00:00`:
 
 | tx | contents |
 |---|---|
-| `0x04998cb144e0dfdf6c9c4dfefd1d1a2ceed45a5cf581157aa0b08e157a64efcd` | 38 entities: 10 result sections, 21 crash rows, 7 yearly-APY rows |
-| `0xc6be317640bf0fe59275c11cfe7f8cf54cfbc1b12bd24d9d0fa3c8806cc9acdd` | trader dataset, part 1/2 |
-| `0x373d9ddca61f6c1fdc48895be27cb219700e55e9e83428efd88e58d05be2bbf4` | trader dataset, part 2/2 |
+| `0xd2dfb12c837ca0af4becc8275ae0c6b1e87407cdb43998d11b76bb5fb8b2e0ab` | 41 entities: 13 result sections (incl. `lp_equilibrium`), 21 crash rows, 7 yearly-APY rows |
+| `0xd523562d014e2c6568c64df343c708bfcf7cbb65b346b7b08dbd0c101f755850` | trader dataset, part 1/2 |
+| `0x7bfad49b611af3abb9eb1315a04e7494b4dc34260b71a70c77ab325e469639d2` | trader dataset, part 2/2 |
 
 Explorer: https://rabdi.explorer.arkiv.network
 
@@ -51,7 +51,7 @@ console.log("base:", (await q("base")).entities);                      // [] -> 
 console.log("stress + 30-min outage:", (await q("stress_outage_30m")).entities); // [] -> none, even with keepers offline for 30 min
 ```
 
-Output on run `df74b20`: both queries return `[]`. Lenders lost $0 in all 7 crashes in every scenario, including `stress` and `stress_outage_30m`.
+Output on run `bf3cdb9`: both queries return `[]`. Lenders lost $0 in all 7 crashes in every scenario, including `stress` and `stress_outage_30m`.
 
 ## Code
 - Writer: [`frontend/scripts/publish-arkiv.ts`](../../frontend/scripts/publish-arkiv.ts) (`@arkiv-network/sdk` 1.0.1)
