@@ -29,6 +29,13 @@ HOLDS = (0, 1, 6, 24)
 RS, RE = "2026-05-11", "2026-11-01"
 
 
+def finite(o):
+    """JSON has no Infinity/NaN: write them as null."""
+    if isinstance(o, dict): return {k: finite(v) for k, v in o.items()}
+    if isinstance(o, list): return [finite(v) for v in o]
+    return None if isinstance(o, float) and not np.isfinite(o) else o
+
+
 def headline(_):
     s = Sim(load(START, END), BASE_P, BASE_D, 1e6).run()
     tr, h = s.trades(), np.array(s.hourly)
@@ -294,8 +301,8 @@ def main(out):
         levels=dict(synthetic=syn_level_stats, real=real_level_stats),
         experiments={exp["id"]: exp for exp in exp_results},
     )
-    with open(out, "w") as f:
-        json.dump(res, f, default=float, separators=(",", ":"))
+    with open(out, "w") as f:  # round-trip so numpy floats become floats, then inf (an uncapped param) -> null
+        json.dump(finite(json.loads(json.dumps(res, default=float))), f, separators=(",", ":"), allow_nan=False)
     pos = os.path.join(os.path.dirname(out) or ".", "positions.json.gz")
     with open(pos, "wb") as f:
         f.write(gzip.compress(json.dumps(hl.dataset(accts), separators=(",", ":")).encode(), mtime=0))
