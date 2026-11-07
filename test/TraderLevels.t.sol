@@ -71,7 +71,7 @@ contract TraderLevelsTest is BaseTest {
         // Price rises so V = 550. Profit = 550 - 400 - 100 = 50.
         // L0: 15% lp (7.5e6), 5% treasury (2.5e6), trader payout = 100 + 40 = 140e6.
         uint256 id = _open(100e6, 5, false);
-        _setPrice(address(cirBTC), 55_000);
+        _setPrice(address(cbBTC), 55_000);
 
         uint256 traderBefore = usdc.balanceOf(trader);
         vm.prank(trader);
@@ -89,7 +89,7 @@ contract TraderLevelsTest is BaseTest {
         // Price 50k -> notional 500, spot = 0.01 BTC.
         // Set price to 50,750 -> V = 507.5e6, profit = 7.5e6.
         // Trader gets margin (100) + 80% of 7.5 = 6e6. Net pnl = +6e6.
-        _setPrice(address(cirBTC), 50_750);
+        _setPrice(address(cbBTC), 50_750);
         vm.prank(trader);
         pm.closePosition(id1, 0);
 
@@ -99,9 +99,9 @@ contract TraderLevelsTest is BaseTest {
         assertEq(pnl, 6e6);
 
         // Second trade: profit 6e6 -> total pnl = 12e6 >= 10e6 with 2 trades -> promotes to L1
-        _setPrice(address(cirBTC), 50_000);
+        _setPrice(address(cbBTC), 50_000);
         uint256 id2 = _open(100e6, 5, false);
-        _setPrice(address(cirBTC), 50_750);
+        _setPrice(address(cbBTC), 50_750);
 
         vm.expectEmit(true, false, false, true);
         emit PositionManager.LevelChanged(trader, 0, 1);
@@ -119,14 +119,14 @@ contract TraderLevelsTest is BaseTest {
         // Trade 1: profit ~4e6
         // 50k -> 50,500: V = 505e6. Profit = 5e6. Trader payout = 100 + 4 = 104e6 (pnl = +4e6).
         uint256 id1 = _open(100e6, 5, false);
-        _setPrice(address(cirBTC), 50_500);
+        _setPrice(address(cbBTC), 50_500);
         vm.prank(trader);
         pm.closePosition(id1, 0);
 
         // Trade 2: profit ~4e6 -> total ~8e6 < 10e6
-        _setPrice(address(cirBTC), 50_000);
+        _setPrice(address(cbBTC), 50_000);
         uint256 id2 = _open(100e6, 5, false);
-        _setPrice(address(cirBTC), 50_500);
+        _setPrice(address(cbBTC), 50_500);
         vm.prank(trader);
         pm.closePosition(id2, 0);
 
@@ -146,7 +146,7 @@ contract TraderLevelsTest is BaseTest {
         // Price drops: 50,000 -> 47,500. V = 475. U3 = 475 - 400 = 75. Trader payout = 75.
         // Pnl = 75 - 100 = -25e6 <= -20e6. Demotes to 0.
         uint256 id = _open(100e6, 5, false);
-        _setPrice(address(cirBTC), 47_500);
+        _setPrice(address(cbBTC), 47_500);
 
         vm.expectEmit(true, false, false, true);
         emit PositionManager.LevelChanged(trader, 1, 0);
@@ -163,7 +163,7 @@ contract TraderLevelsTest is BaseTest {
     function test_liquidation_countsAsFullMarginLoss() public {
         uint256 id = _open(100e6, 5, false);
         // Price drops below threshold to trigger liquidation
-        _setPrice(address(cirBTC), 40_000);
+        _setPrice(address(cbBTC), 40_000);
 
         vm.prank(keeper);
         pm.liquidate(id, 0);
@@ -175,7 +175,7 @@ contract TraderLevelsTest is BaseTest {
 
     function test_level0_neverDemotes() public {
         uint256 id = _open(100e6, 5, false);
-        _setPrice(address(cirBTC), 45_000); // severe loss
+        _setPrice(address(cbBTC), 45_000); // severe loss
 
         vm.prank(trader);
         pm.closePosition(id, 0);
@@ -191,12 +191,12 @@ contract TraderLevelsTest is BaseTest {
 
         // Huge profit at L1 (L2 is disabled)
         uint256 id1 = _open(100e6, 5, false);
-        _setPrice(address(cirBTC), 100_000);
+        _setPrice(address(cbBTC), 100_000);
         vm.prank(trader);
         pm.closePosition(id1, 0);
 
         uint256 id2 = _open(100e6, 5, false);
-        _setPrice(address(cirBTC), 100_000);
+        _setPrice(address(cbBTC), 100_000);
         vm.prank(trader);
         pm.closePosition(id2, 0);
 

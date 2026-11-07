@@ -20,7 +20,7 @@ abstract contract BaseTest is Test {
     address internal keeper = makeAddr("keeper");
 
     MockUSDC internal usdc;
-    MockToken internal cirBTC;
+    MockToken internal cbBTC;
     MockToken internal weth;
     MockMetaMorpho internal morpho;
     MockRouter internal router;
@@ -36,7 +36,7 @@ abstract contract BaseTest is Test {
         vm.warp(1_750_000_000);
 
         usdc = new MockUSDC();
-        cirBTC = new MockToken("Circle BTC", "cirBTC", 8);
+        cbBTC = new MockToken("Coinbase Wrapped BTC", "cbBTC", 8);
         weth = new MockToken("Wrapped Ether", "WETH", 18);
         morpho = new MockMetaMorpho(IERC20(address(usdc)));
         router = new MockRouter(address(usdc));
@@ -57,17 +57,17 @@ abstract contract BaseTest is Test {
         pm = _deployPM(IOracle(address(oracle)));
         vault.setPositionManager(address(pm));
         insurance.setPositionManager(address(pm));
-        pm.setAsset(address(cirBTC), true, 3_500, 2_000);
+        pm.setAsset(address(cbBTC), true, 3_500, 2_000);
         pm.setAsset(address(weth), true, 3_500, 2_000);
         pm.setSwapRouter(address(router));
         vm.stopPrank();
 
         // Router inventory.
         usdc.mint(address(router), 10_000_000e6);
-        cirBTC.mint(address(router), 1_000e8);
+        cbBTC.mint(address(router), 1_000e8);
         weth.mint(address(router), 100_000e18);
 
-        _setPrice(address(cirBTC), 50_000);
+        _setPrice(address(cbBTC), 50_000);
         _setPrice(address(weth), 2_500);
 
         // LP liquidity.
@@ -127,7 +127,7 @@ abstract contract BaseTest is Test {
     }
 
     function _open(uint128 margin, uint8 tier, bool autoRollover) internal returns (uint256 posId) {
-        return _openAs(trader, address(cirBTC), margin, tier, autoRollover);
+        return _openAs(trader, address(cbBTC), margin, tier, autoRollover);
     }
 
     function _openAs(address who, address token, uint128 margin, uint8 tier, bool autoRollover)
@@ -151,7 +151,7 @@ abstract contract BaseTest is Test {
     }
 
     function _expectOpenRevert(uint128 margin, uint8 tier, bytes memory err) internal {
-        PositionManager.OpenParams memory p = _params(address(cirBTC), margin, tier, true);
+        PositionManager.OpenParams memory p = _params(address(cbBTC), margin, tier, true);
         if (err.length == 0) vm.expectRevert();
         else vm.expectRevert(err);
         vm.prank(trader);

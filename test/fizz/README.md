@@ -36,7 +36,7 @@ Comprehensive stateful property and invariant fuzzing suite for the Decentralise
 1. **`test/fizz/Base.sol`**:
    - Deploys full test fixture with mocks:
      - `MockUSDC`: 6-decimal Circle-style token
-     - `MockToken`: `weth` (18 decimals) and `cirBTC` (8 decimals)
+     - `MockToken`: `weth` (18 decimals) and `cbBTC` (8 decimals)
      - `MockMetaMorpho`: ERC-4626 vault simulation for idle USDC yield
      - `MockOracle`: Spot/TWAP valuation for spot collateral
      - `MockRouter`: Exact-input spot swap execution engine

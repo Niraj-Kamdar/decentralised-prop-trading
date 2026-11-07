@@ -29,7 +29,7 @@ contract WithdrawalQueueTest is BaseTest {
     /// @dev Time travel and re-pin oracle prices.
     function _skip(uint256 dt) internal {
         skip(dt);
-        _setPrice(address(cirBTC), 50_000);
+        _setPrice(address(cbBTC), 50_000);
         _setPrice(address(weth), 2_500);
     }
 
@@ -44,7 +44,7 @@ contract WithdrawalQueueTest is BaseTest {
 
     function _setShock(uint16 shockBps) internal {
         vm.prank(owner);
-        pm.setAsset(address(cirBTC), true, 10_000, shockBps);
+        pm.setAsset(address(cbBTC), true, 10_000, shockBps);
     }
 
     function _closeAtMark(uint256 posId) internal {
@@ -228,13 +228,13 @@ contract WithdrawalQueueTest is BaseTest {
 
     function test_riskAggregates_trackOpenAddMarginClose() public {
         uint256 posId = _open(1_000e6, 10, true);
-        assertEq(pm.borrowedByAssetTier(address(cirBTC), 10), 9_000e6);
+        assertEq(pm.borrowedByAssetTier(address(cbBTC), 10), 9_000e6);
         assertEq(pm.openPositionCount(), 1);
         vm.prank(trader);
         pm.addMargin(posId, 1_000e6);
-        assertEq(pm.borrowedByAssetTier(address(cirBTC), 10), 8_000e6);
+        assertEq(pm.borrowedByAssetTier(address(cbBTC), 10), 8_000e6);
         _closeAtMark(posId);
-        assertEq(pm.borrowedByAssetTier(address(cirBTC), 10), 0);
+        assertEq(pm.borrowedByAssetTier(address(cbBTC), 10), 0);
         assertEq(pm.openPositionCount(), 0);
         assertEq(pm.stressedLPLoss(), 0);
     }
@@ -270,7 +270,7 @@ contract WithdrawalQueueTest is BaseTest {
         assertEq(vault.fulfilmentBudget(), 0);
 
         // Trader closes at a profit while the gate is shut: payout is unaffected.
-        _setPrice(address(cirBTC), 55_000); // +10%: V = 99k
+        _setPrice(address(cbBTC), 55_000); // +10%: V = 99k
         uint256 before = usdc.balanceOf(trader);
         _closeAtMark(posId);
         assertGt(usdc.balanceOf(trader) - before, 9_000e6, "margin plus profit share paid");
@@ -280,7 +280,7 @@ contract WithdrawalQueueTest is BaseTest {
 
     function test_allocationBlockedByPendingQueue() public {
         _requestAssets(lp, 95_000e6);
-        PositionManager.OpenParams memory p = _params(address(cirBTC), 1_000e6, 10, true);
+        PositionManager.OpenParams memory p = _params(address(cbBTC), 1_000e6, 10, true);
         vm.expectPartialRevert(LPVault.AllocationBlockedByQueue.selector);
         vm.prank(trader);
         pm.openPosition(p);

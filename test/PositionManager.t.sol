@@ -18,13 +18,13 @@ contract PositionManagerTest is BaseTest {
         assertEq(pos.notional, 1_000e6);
         assertEq(pos.userMargin, 100e6);
         assertEq(pos.borrowedPrincipal, 900e6);
-        assertEq(pos.spotAmount, 2_000_000); // 0.02 cirBTC
+        assertEq(pos.spotAmount, 2_000_000); // 0.02 cbBTC
         assertEq(pos.epochEndTime, block.timestamp + 7 days);
-        assertEq(cirBTC.balanceOf(pos.proxy), 2_000_000);
+        assertEq(cbBTC.balanceOf(pos.proxy), 2_000_000);
         assertEq(usdc.balanceOf(pos.proxy), 0);
         assertEq(vault.totalBorrowedPrincipal(), 900e6);
         assertEq(vault.totalAssets(), LP_DEPOSIT); // lending is asset-neutral
-        assertEq(pm.assetExposure(address(cirBTC)), 1_000e6);
+        assertEq(pm.assetExposure(address(cbBTC)), 1_000e6);
         assertEq(pm.liquidationThreshold(posId), 920e6);
     }
 
@@ -54,13 +54,13 @@ contract PositionManagerTest is BaseTest {
         _expectOpenRevert(
             4_000e6,
             10,
-            abi.encodeWithSelector(PositionManager.ExposureCapExceeded.selector, address(cirBTC), 40_000e6, 35_000e6)
+            abi.encodeWithSelector(PositionManager.ExposureCapExceeded.selector, address(cbBTC), 40_000e6, 35_000e6)
         );
     }
 
     function test_open_revertsOverUtilizationCap() public {
         vm.prank(owner);
-        pm.setAsset(address(cirBTC), true, 10_000, 2_000);
+        pm.setAsset(address(cbBTC), true, 10_000, 2_000);
         _open(9_000e6, 10, true); // B = 81k <= 85k
         _expectOpenRevert(500e6, 10, ""); // 81k + 4.5k > 85k (LPVault.UtilizationCapExceeded)
     }
@@ -82,7 +82,7 @@ contract PositionManagerTest is BaseTest {
 
     function test_close_inProfit_10xSplit() public {
         uint256 posId = _open(100e6, 10, true);
-        _setPrice(address(cirBTC), 55_000); // V = 1100
+        _setPrice(address(cbBTC), 55_000); // V = 1100
 
         uint256 traderBefore = usdc.balanceOf(trader);
         uint256 s = _exitSwap(posId, 100);
@@ -94,7 +94,7 @@ contract PositionManagerTest is BaseTest {
         assertEq(insurance.insurancePoolBalance(), 1.5e6);
         assertEq(insurance.opsTreasuryBalance(), 1.5e6);
         assertEq(vault.totalBorrowedPrincipal(), 0);
-        assertEq(pm.assetExposure(address(cirBTC)), 0);
+        assertEq(pm.assetExposure(address(cbBTC)), 0);
 
         // LP yield is vesting, not instant.
         assertEq(vault.totalAssets(), LP_DEPOSIT);
@@ -106,7 +106,7 @@ contract PositionManagerTest is BaseTest {
 
     function test_close_inProfit_5xSplit() public {
         uint256 posId = _open(200e6, 5, true);
-        _setPrice(address(cirBTC), 55_000); // V = 1100, B = 800, U3 = 300, profit = 100
+        _setPrice(address(cbBTC), 55_000); // V = 1100, B = 800, U3 = 300, profit = 100
 
         uint256 traderBefore = usdc.balanceOf(trader);
         uint256 s = _exitSwap(posId, 100);
@@ -121,7 +121,7 @@ contract PositionManagerTest is BaseTest {
 
     function test_close_atLoss() public {
         uint256 posId = _open(100e6, 10, true);
-        _setPrice(address(cirBTC), 47_500); // V = 950 -> U3 = 50
+        _setPrice(address(cbBTC), 47_500); // V = 950 -> U3 = 50
 
         uint256 traderBefore = usdc.balanceOf(trader);
         uint256 s = _exitSwap(posId, 100);
@@ -186,7 +186,7 @@ contract PositionManagerTest is BaseTest {
         PositionManager.Position memory pos = pm.getPosition(posId);
         vm.prank(trader);
         vm.expectRevert(TraderProxy.OnlyManager.selector);
-        TraderProxy(pos.proxy).sweep(address(cirBTC), trader, pos.spotAmount);
+        TraderProxy(pos.proxy).sweep(address(cbBTC), trader, pos.spotAmount);
     }
 
     function test_rejectsNativeValue() public {
@@ -204,13 +204,13 @@ contract PositionManagerTest is BaseTest {
     function test_liquidate_exactThreshold() public {
         uint256 posId = _open(100e6, 10, true);
 
-        _setPrice(address(cirBTC), 46_001); // V = 920.02 > 920
+        _setPrice(address(cbBTC), 46_001); // V = 920.02 > 920
         uint256 s0 = _exitSwap(posId, 200);
         vm.prank(keeper);
         vm.expectRevert();
         pm.liquidate(posId, s0);
 
-        _setPrice(address(cirBTC), 46_000); // V = 920 == V_liq
+        _setPrice(address(cbBTC), 46_000); // V = 920 == V_liq
         assertTrue(pm.isLiquidatable(posId));
         uint256 s = _exitSwap(posId, 200);
         vm.prank(keeper);
@@ -230,7 +230,7 @@ contract PositionManagerTest is BaseTest {
         usdc.approve(address(insurance), 20e6);
         insurance.donate(20e6);
 
-        _setPrice(address(cirBTC), 42_500); // gap down: V = 850
+        _setPrice(address(cbBTC), 42_500); // gap down: V = 850
         uint256 s = _exitSwap(posId, 200);
         vm.prank(keeper);
         pm.liquidate(posId, s);
@@ -253,7 +253,7 @@ contract PositionManagerTest is BaseTest {
         pm.processEpoch(posId, early);
 
         skip(7 days);
-        _setPrice(address(cirBTC), 50_000);
+        _setPrice(address(cbBTC), 50_000);
         uint256 s = _exitSwap(posId, 100);
         vm.prank(keeper);
         pm.processEpoch(posId, s);
@@ -269,7 +269,7 @@ contract PositionManagerTest is BaseTest {
     function test_processEpoch_expiryClose_withBounty() public {
         uint256 posId = _open(100e6, 10, false);
         skip(7 days);
-        _setPrice(address(cirBTC), 50_000);
+        _setPrice(address(cbBTC), 50_000);
 
         uint256 traderBefore = usdc.balanceOf(trader);
         uint256 s = _exitSwap(posId, 100);
@@ -285,7 +285,7 @@ contract PositionManagerTest is BaseTest {
     function test_lateKeeper_debtStillAccrues() public {
         uint256 posId = _open(100e6, 10, true);
         skip(21 days); // epochs starting at day 7, 14 and 21 are due
-        _setPrice(address(cirBTC), 55_000);
+        _setPrice(address(cbBTC), 55_000);
 
         uint256 fee = pm.epochRolloverFee(900e6);
         uint256 traderBefore = usdc.balanceOf(trader);
@@ -302,7 +302,7 @@ contract PositionManagerTest is BaseTest {
     function test_rolloverDebt_split80_20() public {
         uint256 posId = _open(100e6, 10, true);
         skip(7 days);
-        _setPrice(address(cirBTC), 50_000);
+        _setPrice(address(cbBTC), 50_000);
         uint256 s = _exitSwap(posId, 100);
         vm.prank(trader);
         pm.closePosition(posId, s);
@@ -321,13 +321,13 @@ contract PositionManagerTest is BaseTest {
         vm.prank(trader);
         pm.setOrders(posId, 48_000e18, 0, 0);
 
-        _setPrice(address(cirBTC), 48_500);
+        _setPrice(address(cbBTC), 48_500);
         uint256 s0 = _exitSwap(posId, 100);
         vm.prank(keeper);
         vm.expectRevert();
         pm.executeTrigger(posId, s0);
 
-        _setPrice(address(cirBTC), 47_000); // V = 940
+        _setPrice(address(cbBTC), 47_000); // V = 940
         uint256 traderBefore = usdc.balanceOf(trader);
         uint256 s = _exitSwap(posId, 100);
         vm.prank(keeper);
@@ -355,7 +355,7 @@ contract PositionManagerTest is BaseTest {
         usdc.setBlocklisted(trader, true);
 
         skip(7 days);
-        _setPrice(address(cirBTC), 50_000);
+        _setPrice(address(cbBTC), 50_000);
         uint256 s = _exitSwap(posId, 100);
         vm.prank(keeper);
         pm.processEpoch(posId, s); // must not revert
@@ -389,12 +389,12 @@ contract PositionManagerTest is BaseTest {
         uint256 posId = _open(100e6, 10, autoRoll);
 
         skip(daysHeld * 1 days);
-        _setPrice(address(cirBTC), priceUsd);
+        _setPrice(address(cbBTC), priceUsd);
 
         uint256 vaultGrossBefore = vault.totalAssets();
         uint256 traderBefore = usdc.balanceOf(trader);
         uint256 insBefore = usdc.balanceOf(address(insurance));
-        uint256 out = router.quote(address(cirBTC), address(usdc), pm.getPosition(posId).spotAmount);
+        uint256 out = router.quote(address(cbBTC), address(usdc), pm.getPosition(posId).spotAmount);
 
         bool liq = pm.isLiquidatable(posId);
         uint256 s = _exitSwap(posId, liq ? 200 : 100);

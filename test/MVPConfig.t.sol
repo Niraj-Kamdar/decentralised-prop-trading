@@ -34,7 +34,7 @@ contract MVPConfigTest is BaseTest {
         pm = _deployPM(IOracle(address(oracle)));
         vault.setPositionManager(address(pm));
         insurance.setPositionManager(address(pm));
-        pm.setAsset(address(cirBTC), true, 3_500, 2_000);
+        pm.setAsset(address(cbBTC), true, 3_500, 2_000);
         pm.setAsset(address(weth), true, 3_500, 2_000);
         pm.setSwapRouter(address(router));
         pm.transferOwnership(SCRIPT_SENDER);
@@ -57,7 +57,7 @@ contract MVPConfigTest is BaseTest {
     function _configure() internal {
         vm.setEnv("POSITION_MANAGER", vm.toString(address(pm)));
         vm.setEnv("LP_VAULT", vm.toString(address(vault)));
-        vm.setEnv("ASSETS", string.concat(vm.toString(address(cirBTC)), ",", vm.toString(address(weth))));
+        vm.setEnv("ASSETS", string.concat(vm.toString(address(cbBTC)), ",", vm.toString(address(weth))));
         new ConfigureMVP().run();
     }
 
@@ -70,7 +70,7 @@ contract MVPConfigTest is BaseTest {
         assertEq(pm.minNotional(), 25e6);
         assertEq(pm.keeperBounty(), 0.1e6);
         assertEq(pm.rolloverAprBps(), 800);
-        (bool enabled, uint16 cap, uint16 shock) = pm.assetConfigs(address(cirBTC));
+        (bool enabled, uint16 cap, uint16 shock) = pm.assetConfigs(address(cbBTC));
         assertTrue(enabled);
         assertEq(cap, 10_000);
         assertEq(shock, 2_000);
@@ -84,7 +84,7 @@ contract MVPConfigTest is BaseTest {
         assertEq(vault.totalBorrowedPrincipal(), 65e6);
 
         // Close both at a 10% gain: margin back plus 90% / 85% of the profit.
-        _setPrice(address(cirBTC), 55_000);
+        _setPrice(address(cbBTC), 55_000);
         _setPrice(address(weth), 2_750);
         uint256 before = usdc.balanceOf(trader);
         vm.startPrank(trader);
@@ -114,7 +114,7 @@ contract MVPConfigTest is BaseTest {
     function test_mvp_liquidationPaysSmallBounty() public {
         _configure();
         uint256 id = _open(5e6, 10, false); // N=50, B=45, V_liq = 46
-        _setPrice(address(cirBTC), 45_900); // V = 45.9
+        _setPrice(address(cbBTC), 45_900); // V = 45.9
         uint256 before = usdc.balanceOf(keeper);
         uint256 s = _exitSwap(id, 200);
         vm.prank(keeper);
