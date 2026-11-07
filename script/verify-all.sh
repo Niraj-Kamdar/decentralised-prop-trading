@@ -9,7 +9,7 @@ if [ ! -f "$JSON" ]; then
   exit 1
 fi
 
-ETHERSCAN_KEY="${ETHERSCAN_API_KEY:-HDRZDAMRFHWCA2JH2V4JV73X1SJZ5GAU4E}"
+ETHERSCAN_KEY="${ETHERSCAN_API_KEY:?set ETHERSCAN_API_KEY}"
 
 ORACLE=$(node -pe "require('$JSON').chainlinkOracle")
 ROUTER=$(node -pe "require('$JSON').v4SwapRouter")
