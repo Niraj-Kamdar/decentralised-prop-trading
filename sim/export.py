@@ -204,6 +204,54 @@ def run_single_experiment(spec):
     )
 
 
+def with_levels(p, l0=(5, 25.0, 0.0), l1=(10, 100.0, 0.0), hold_h=0):
+    """Promotion thresholds per level as (min trades, min pnl $, min roi on margin); demotion is untouched."""
+    lv = {k: replace(v) for k, v in p.levels.items()}
+    for k, (n, usd, roi) in ((0, l0), (1, l1)):
+        lv[k] = replace(lv[k], promote_min_trades=n, promote_min_pnl=usd, promote_min_roi=roi)
+    return replace(p, levels=lv, promote_min_hold_h=hold_h)
+
+
+LEVEL_SWEEP = [
+    ("current", "Current: 5 trades/+$25, 10/+$100", BASE_P),
+    ("n3_5", "3/5 trades, same $", with_levels(BASE_P, (3, 25., 0), (5, 100., 0))),
+    ("n0", "No trade count, same $", with_levels(BASE_P, (0, 25., 0), (0, 100., 0))),
+    ("n3_5_usd10_50", "3/5 trades, +$10/+$50", with_levels(BASE_P, (3, 10., 0), (5, 50., 0))),
+    ("n0_usd10_50", "No count, +$10/+$50", with_levels(BASE_P, (0, 10., 0), (0, 50., 0))),
+    ("n3_5_roi20", "3/5 trades, +20% of margin", with_levels(BASE_P, (3, 0, .2), (5, 0, .2))),
+    ("n0_roi10", "No count, +10% of margin", with_levels(BASE_P, (0, 0, .1), (0, 0, .1))),
+    ("n3_5_usd10_50_h24", "3/5, +$10/+$50, hold >= 24h", with_levels(BASE_P, (3, 10., 0), (5, 50., 0), 24)),
+    ("n3_5_roi20_h24", "3/5, +20% of margin, hold >= 24h", with_levels(BASE_P, (3, 0, .2), (5, 0, .2), 24)),
+]
+
+
+def level_metrics(s):
+    """APY, utilisation, level mix, median days to L1/L2, and the share of promoted traders still profitable."""
+    tr, r = s.traders, s.summary()
+    n = max(len(tr), 1)
+    med = lambda ts: round(float(np.median(ts)) / DAY, 1) if ts else None  # noqa: E731
+    after = [t.pnl_after > 0 for t in tr if t.promoted_l1_t >= 0 and t.n_after > 0]
+    return dict(
+        apy=float(r["apy"]), util=float(r["util"]), traders=len(tr),
+        pct={f"L{i}": round(sum(t.level == i for t in tr) / n, 4) for i in range(3)},
+        days_to_l1=med([t.promoted_l1_t for t in tr if t.promoted_l1_t >= 0]),
+        days_to_l2=med([t.promoted_l2_t for t in tr if t.promoted_l2_t >= 0]),
+        promoted=sum(t.promoted_l1_t >= 0 for t in tr), promoted_profitable=round(float(np.mean(after)), 4) if after else None)
+
+
+def level_sweep_job(spec):
+    """One (config, kind) run: synthetic headline demand, Hyperliquid replay, or the 7 crashes (base + stress)."""
+    (cid, _, p), kind = spec
+    if kind == "syn":
+        return level_metrics(Sim(load(START, END), p, BASE_D, 1e6).run())
+    if kind == "hl":
+        return level_metrics(hl.replay(hl.table(hl.load(600)), RS, RE, p, vol_x=47.0))
+    loss = {}
+    for sc, (cp, cd) in {"base": (p, CRASH_DEMAND), "stress": (replace(p, pool_depth=1e6), replace(CRASH_DEMAND, p_10x=1.0))}.items():
+        loss[sc] = float(sum(crash_job((n, cp, cd, 1e6, 0.0, 0))["bad_debt"] for n in CRASHES))
+    return loss
+
+
 def main(out):
     accts = hl.load(600)
     with ProcessPoolExecutor() as ex:
@@ -226,6 +274,7 @@ def main(out):
 
         # Experiments E1-E4
         f_exp = ex.map(run_single_experiment, EXPERIMENT_CONFIGS)
+        sweep = [[ex.submit(level_sweep_job, (c, k)) for k in ("syn", "hl", "crash")] for c in LEVEL_SWEEP]
 
         years, crash, drops, grid, rep = list(f_years), list(f_crash), list(f_drop), list(f_map), list(f_rep)
         twap_crash, cl_crash = list(f_twap_crash), list(f_cl_crash)
@@ -300,6 +349,8 @@ def main(out):
             dict(min_hold_h=None, synthetic=True) | pick(syn.result(), *YIELD_KEYS)])),
         levels=dict(synthetic=syn_level_stats, real=real_level_stats),
         experiments={exp["id"]: exp for exp in exp_results},
+        levels_sweep={c[0]: dict(label=c[1], synthetic=f[0].result(), hyperliquid=f[1].result(),
+                                 crash_lp_loss=f[2].result()) for c, f in zip(LEVEL_SWEEP, sweep)},
     )
     with open(out, "w") as f:  # round-trip so numpy floats become floats, then inf (an uncapped param) -> null
         json.dump(finite(json.loads(json.dumps(res, default=float))), f, separators=(",", ":"), allow_nan=False)
