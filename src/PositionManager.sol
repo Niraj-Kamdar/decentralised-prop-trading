@@ -12,7 +12,6 @@ import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/acces
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import {TraderProxy} from "./TraderProxy.sol";
 import {ArcConstants} from "./libraries/ArcConstants.sol";
 import {
     ILPVault,
@@ -209,6 +208,7 @@ contract PositionManager is
     event DeniedSet(address indexed account, bool denied);
     event AssetSet(address indexed token, AssetConfig config);
     event SwapRouterSet(address indexed router);
+    event ProxyImplementationSet(address indexed impl);
     event OracleSet(address oracle);
     event GuardianSet(address indexed guardian);
     event RiskParamsSet(
@@ -244,6 +244,7 @@ contract PositionManager is
     error NothingToClaim();
     error Denied(address account);
     error LevelLimitExceeded(uint8 level);
+    error ProxyImplementationNotSet();
 
     // ---------------------------------------------------------------------
     // Construction & Initialization
@@ -278,7 +279,6 @@ contract PositionManager is
         lpVault = lpVault_;
         insurance = insurance_;
         oracle = oracle_;
-        proxyImplementation = address(new TraderProxy(address(this)));
 
         rolloverAprBps = 800;
         lpRolloverShareBps = 8_000;
@@ -331,6 +331,7 @@ contract PositionManager is
         AssetConfig memory a = assetConfigs[p.spotToken];
         if (!a.enabled) revert AssetNotEnabled(p.spotToken);
         if (swapRouter == address(0)) revert SwapRouterNotSet();
+        if (proxyImplementation == address(0)) revert ProxyImplementationNotSet();
 
         uint256 margin = p.margin;
         uint256 notional = margin * p.tier;
@@ -527,6 +528,7 @@ contract PositionManager is
     }
 
     function predictProxyAddress(uint256 posId) external view returns (address) {
+        if (proxyImplementation == address(0)) revert ProxyImplementationNotSet();
         return Clones.predictDeterministicAddress(proxyImplementation, bytes32(posId));
     }
 
@@ -651,6 +653,12 @@ contract PositionManager is
             maxExitSlippageBps_,
             maxLiqSlippageBps_
         );
+    }
+
+    function setProxyImplementation(address impl) external onlyOwner {
+        if (impl == address(0)) revert ZeroAddress();
+        proxyImplementation = impl;
+        emit ProxyImplementationSet(impl);
     }
 
     function setOracle(IOracle oracle_) external onlyOwner {

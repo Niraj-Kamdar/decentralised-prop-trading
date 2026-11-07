@@ -22,6 +22,7 @@ import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 
 import {LPVault} from "../../src/LPVault.sol";
 import {PositionManager} from "../../src/PositionManager.sol";
+import {TraderProxy} from "../../src/TraderProxy.sol";
 import {InsuranceReserve} from "../../src/InsuranceReserve.sol";
 import {UniV4TwapOracle} from "../../src/UniV4TwapOracle.sol";
 import {V4SwapRouter} from "../../src/V4SwapRouter.sol";
@@ -190,6 +191,8 @@ abstract contract Base is StringUtils, Clamp, Deployer, Math {
         // Permissions and wiring
         vault.setPositionManager(address(pm));
         insurance.setPositionManager(address(pm));
+        TraderProxy proxyImpl = new TraderProxy(address(pm));
+        pm.setProxyImplementation(address(proxyImpl));
         pm.setSwapRouter(address(mockRouter));
         pm.setAsset(address(cirBTC), true, 3_500, 2_000);
         pm.setAsset(address(weth), true, 3_500, 2_000);
