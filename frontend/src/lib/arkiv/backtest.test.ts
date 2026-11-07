@@ -196,3 +196,14 @@ test("every query is owner-filtered", async () => {
   }
 });
 
+
+test("assembleBacktest reads an optional section when present", () => {
+  const sectionRows = [...SECTIONS, "lp_equilibrium"].map((section) => ({
+    section,
+    commit: "bf3cdb9",
+    published: 1794009044,
+    body: gzipSync(JSON.stringify(section === "lp_equilibrium" ? { calibrated: { "0.055": { apy: { mean: 0.102 } } } } : { ok: true })),
+  }));
+  const result = assembleBacktest("bf3cdb9@x", sectionRows, makeDummyCrashes(21), makeDummyYears(7));
+  assert.equal(result?.sections.lp_equilibrium.calibrated["0.055"].apy.mean, 0.102);
+});
