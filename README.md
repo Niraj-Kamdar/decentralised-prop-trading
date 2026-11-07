@@ -10,6 +10,19 @@ Live app: https://fulcrum-trade.vercel.app · Backtest: https://fulcrum-trade.ve
 
 > Build, test and contribution details: [DEVELOPMENT.md](DEVELOPMENT.md)
 
+## Deployed on Base mainnet (8453)
+
+| Contract | Address |
+|---|---|
+| PositionManager (proxy) | [`0x3f3d197d4582d1D10818a115ef7D7413FD11B8d9`](https://basescan.org/address/0x3f3d197d4582d1D10818a115ef7D7413FD11B8d9) |
+| LPVault (proxy) | [`0x38669C1C8fb153Ba4cCB40BF08986014EfBa0F26`](https://basescan.org/address/0x38669C1C8fb153Ba4cCB40BF08986014EfBa0F26) |
+| ChainlinkOracle | [`0xAEB1d29301aaFCB8cA719e8c1B09C4cD1F6a9CE9`](https://basescan.org/address/0xAEB1d29301aaFCB8cA719e8c1B09C4cD1F6a9CE9) |
+| InsuranceReserve | [`0x96621c13dc4b6c3588Ad3bFff1B37cc1328b69ff`](https://basescan.org/address/0x96621c13dc4b6c3588Ad3bFff1B37cc1328b69ff) |
+| V4SwapRouter | [`0x58640556f82Fa9c7F7447392B5450099EcbbcB96`](https://basescan.org/address/0x58640556f82Fa9c7F7447392B5450099EcbbcB96) |
+| TraderProxy implementation | [`0x3b7bB8b3C902A30A53485d431A3733D329587F40`](https://basescan.org/address/0x3b7bB8b3C902A30A53485d431A3733D329587F40) |
+
+Also in [`deployments/base-mainnet.json`](deployments/base-mainnet.json).
+
 ---
 
 ## 1. The big picture
