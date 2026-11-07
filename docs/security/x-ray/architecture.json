@@ -1,0 +1,28 @@
+{
+  "title": "Fulcrum Protocol Architecture",
+  "nodes": [
+    {"id": "trader", "label": "Trader", "subtitle": "Prop Trader", "type": "actor", "row": 0},
+    {"id": "lp", "label": "Liquidity Provider", "subtitle": "Vault LP", "type": "actor", "row": 0},
+    {"id": "keeper", "label": "Keeper Bot", "subtitle": "Liquidator & Sched", "type": "actor", "row": 0},
+    {"id": "pm", "label": "PositionManager", "subtitle": "Core Orchestrator", "type": "protocol", "row": 1},
+    {"id": "vault", "label": "LPVault", "subtitle": "spUSDC / ERC-7540", "type": "protocol", "row": 1},
+    {"id": "proxy", "label": "TraderProxy", "subtitle": "Per-Trade Clones", "type": "protocol", "row": 2},
+    {"id": "insurance", "label": "InsuranceReserve", "subtitle": "Bad Debt Backstop", "type": "protocol", "row": 2},
+    {"id": "oracle", "label": "Oracle Feeds", "subtitle": "Chainlink / V4 TWAP", "type": "external", "row": 2},
+    {"id": "morpho", "label": "MetaMorpho", "subtitle": "ERC-4626 Idle Yield", "type": "external", "row": 2},
+    {"id": "router", "label": "V4SwapRouter", "subtitle": "Pool Execution", "type": "protocol", "row": 3},
+    {"id": "pool", "label": "Uniswap v4 Pool", "subtitle": "ETH & BTC Spot Pools", "type": "external", "row": 3}
+  ],
+  "edges": [
+    {"from": "trader", "to": "pm", "label": "margin & orders"},
+    {"from": "lp", "to": "vault", "label": "deposit & redeem"},
+    {"from": "keeper", "to": "pm", "label": "liquidate & roll"},
+    {"from": "pm", "to": "vault", "label": "borrow & repay"},
+    {"from": "pm", "to": "proxy", "label": "deploy & command"},
+    {"from": "pm", "to": "insurance", "label": "backstop & fees"},
+    {"from": "pm", "to": "oracle", "label": "price checks"},
+    {"from": "vault", "to": "morpho", "label": "supply idle USDC"},
+    {"from": "proxy", "to": "router", "label": "execute swap"},
+    {"from": "router", "to": "pool", "label": "v4 unlock swap"}
+  ]
+}

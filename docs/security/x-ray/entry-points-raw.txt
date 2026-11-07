@@ -1,0 +1,61 @@
+src/ChainlinkOracle.sol:48: ChainlinkOracle.setFeed(address asset, AggregatorV3Interface aggregator, uint32 maxStaleness, PoolKey calldata key) external onlyOwner
+src/InsuranceReserve.sol:43: InsuranceReserve.setPositionManager(address pm) external onlyOwner
+src/InsuranceReserve.sol:51: InsuranceReserve.fund(uint256 toInsurance, uint256 treasuryCut) external onlyPositionManager
+src/InsuranceReserve.sol:62: InsuranceReserve.donate(uint256 amount) external
+src/InsuranceReserve.sol:69: InsuranceReserve.coverShortfall(uint256 deficit) external onlyPositionManager returns (uint256 covered)
+src/InsuranceReserve.sol:78: InsuranceReserve.withdrawOps(address to, uint256 amount) external onlyOwner
+src/LPVault.sol:195: LPVault.initialize(IERC20 usdc_, IERC4626 morphoVault_, address owner_) external initializer
+src/LPVault.sol:286: LPVault.deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256)
+src/LPVault.sol:292: LPVault.mint(uint256 shares, address receiver) public override nonReentrant returns (uint256)
+src/LPVault.sol:346: LPVault.requestRedeem(uint256 shares, address controller, address owner) external nonReentrant returns (uint256 requestId)
+src/LPVault.sol:382: LPVault.cancelRedeemRequest(uint256 requestId) external nonReentrant
+src/LPVault.sol:418: LPVault.processRedemptions(uint256 maxRequests) external nonReentrant returns (uint256 fulfilled)
+src/LPVault.sol:453: LPVault.redeem(uint256 shares, address receiver, address controller) public override nonReentrant returns (uint256 assets)
+src/LPVault.sol:468: LPVault.withdraw(uint256 assets, address receiver, address controller) public override nonReentrant returns (uint256 shares)
+src/LPVault.sol:519: LPVault.setOperator(address operator, bool approved) external returns (bool)
+src/LPVault.sol:537: LPVault.depositWithBonus(uint256 assets, address receiver) external nonReentrant returns (uint256 ticketId)
+src/LPVault.sol:566: LPVault.claimTicket(uint256 ticketId) external nonReentrant returns (uint256 bonusShares)
+src/LPVault.sol:583: LPVault.breakTicket(uint256 ticketId) external nonReentrant
+src/LPVault.sol:598: LPVault.donateToBonusPot(uint256 amount) external nonReentrant
+src/LPVault.sol:607: LPVault.accrueBonus() external nonReentrant
+src/LPVault.sol:627: LPVault.allocateToPosition(address proxy, uint256 amount) external onlyPositionManager nonReentrant
+src/LPVault.sol:647: LPVault.repayFromPosition(uint256 principalReturned, uint256 principalBorrowed, uint256 yieldEarned) external onlyPositionManager nonReentrant
+src/LPVault.sol:670: LPVault.setDepositCaps(uint256 total, uint256 perAddress) external onlyOwner
+src/LPVault.sol:676: LPVault.setPositionManager(address pm) external onlyOwner
+src/LPVault.sol:684: LPVault.setParams(uint256 localBufferBps_, uint256 maxUtilizationBps_, uint256 profitUnlockDuration_) external onlyOwner
+src/LPVault.sol:703: LPVault.setQueueParams(uint256 redeemCooldown_, uint256 stressUtilizationBps_, uint256 exitPenaltyBps_, uint256 gateCoverageBps_) external onlyOwner
+src/LPVault.sol:722: LPVault.setBonusParams(uint256 bonusDuration_, uint256 bonusEmissionPeriod_, uint256 maxBonusAprBps_, uint256 minBonusDeposit_) external onlyOwner
+src/LPVault.sol:742: LPVault.migrateMorphoVault(IERC4626 newVault) external onlyOwner nonReentrant
+src/LPVault.sol:753: LPVault.rebalance() external nonReentrant
+src/PositionManager.sol:257: PositionManager.initialize(IERC20 usdc_, ILPVault lpVault_, IInsuranceReserve insurance_, IOracle oracle_, address owner_) external initializer
+src/PositionManager.sol:323: PositionManager.openPosition(OpenParams calldata p) external nonReentrant whenNotPaused returns (uint256 posId)
+src/PositionManager.sol:383: PositionManager.closePosition(uint256 posId, uint256 minAmountOut) external nonReentrant onlyOpen(posId) onlyTraderOrOperator(posId)
+src/PositionManager.sol:397: PositionManager.addMargin(uint256 posId, uint256 amount) external nonReentrant onlyOpen(posId) onlyTraderOrOperator(posId)
+src/PositionManager.sol:415: PositionManager.setAutoRollover(uint256 posId, bool enabled) external onlyOpen(posId) onlyTraderOrOperator(posId)
+src/PositionManager.sol:421: PositionManager.setOrders(uint256 posId, uint128 stopLoss, uint128 takeProfit, uint128 trailingStop) external onlyOpen(posId) onlyTraderOrOperator(posId)
+src/PositionManager.sol:434: PositionManager.setOperator(address operator, bool allowed) external
+src/PositionManager.sol:441: PositionManager.claimTraderPayout() external nonReentrant
+src/PositionManager.sol:455: PositionManager.processEpoch(uint256 posId, uint256 minAmountOut) external nonReentrant onlyOpen(posId)
+src/PositionManager.sol:471: PositionManager.liquidate(uint256 posId, uint256 minAmountOut) external nonReentrant onlyOpen(posId)
+src/PositionManager.sol:483: PositionManager.executeTrigger(uint256 posId, uint256 minAmountOut) external nonReentrant onlyOpen(posId)
+src/PositionManager.sol:575: PositionManager.setAsset(address token, bool enabled, uint16 maxExposureBps, uint16 stressShockBps) external onlyOwner
+src/PositionManager.sol:591: PositionManager.setSwapRouter(address router) external onlyOwner
+src/PositionManager.sol:600: PositionManager.setTier(uint8 tier, TierConfig calldata cfg) external onlyOwner
+src/PositionManager.sol:604: PositionManager.setLevel(uint8 level, LevelConfig calldata cfg) external onlyOwner
+src/PositionManager.sol:612: PositionManager.setTraderLevel(address trader, uint8 level) external onlyOwner
+src/PositionManager.sol:619: PositionManager.setDenied(address account, bool denied) external onlyOwner
+src/PositionManager.sol:625: PositionManager.setRiskParams(uint256 rolloverAprBps_, uint256 lpRolloverShareBps_, uint256 minNotional_, uint256 keeperBounty_, uint256 maxEntrySlippageBps_, uint256 maxExitSlippageBps_, uint256 maxLiqSlippageBps_) external onlyOwner
+src/PositionManager.sol:656: PositionManager.setOracle(IOracle oracle_) external onlyOwner
+src/PositionManager.sol:662: PositionManager.setGuardian(address guardian_) external onlyOwner
+src/PositionManager.sol:668: PositionManager.pause() external
+src/PositionManager.sol:673: PositionManager.unpause() external onlyOwner
+src/TraderProxy.sol:35: TraderProxy.executeSwap(address router, address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, bytes calldata data) external onlyManager returns (uint256 amountOut)
+src/TraderProxy.sol:64: TraderProxy.sweep(address token, address to, uint256 amount) external onlyManager
+src/UniV4TwapOracle.sol:109: UniV4TwapOracle.setFeed(address asset, PoolKey calldata key) external onlyOwner
+src/UniV4TwapOracle.sol:131: UniV4TwapOracle.disableFeed(address asset) external onlyOwner
+src/UniV4TwapOracle.sol:136: UniV4TwapOracle.setRecorder(address recorder, bool allowed) external onlyOwner
+src/UniV4TwapOracle.sol:141: UniV4TwapOracle.setParams(uint32 twapWindow_, uint32 minObservationInterval_, uint32 maxStaleness_, uint32 maxObservationGap_, int24 maxTickDelta_, int24 maxRecordDeviation_) external onlyOwner
+src/UniV4TwapOracle.sol:173: UniV4TwapOracle.record(address[] calldata assetList, int24[] calldata expectedTicks) external
+src/V4SwapRouter.sol:46: V4SwapRouter.swapExactIn(PoolKey calldata key, bool zeroForOne, uint256 amountIn, uint256 minAmountOut, address recipient) external returns (uint256 amountOut)
+src/V4SwapRouter.sol:71: V4SwapRouter.unlockCallback(bytes calldata data) external returns (bytes memory)
+# 60 entry point(s) in 7 of 8 .sol file(s)

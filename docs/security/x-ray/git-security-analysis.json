@@ -1,0 +1,593 @@
+{
+  "meta": {
+    "repo": "/Volumes/Lexar/Home/Documents/ETHGlobal/decentralised-prop-trading/.worktrees/security-audit",
+    "src_dir": "src",
+    "generated_at": "2026-11-07T01:06:22.739667+00:00",
+    "git_head": "df74b20",
+    "git_branch": "audit/security-review",
+    "total_commits": 63,
+    "total_source_files": 10,
+    "analysis_time_ms": 741
+  },
+  "repo_shape": {
+    "classification": "normal_dev",
+    "total_commits": 63,
+    "source_touching_commits": 7,
+    "bulk_import_sha": null,
+    "date_spread_days": 1,
+    "first_commit_date": "2026-11-06",
+    "last_commit_date": "2026-11-07",
+    "signals": [
+      "Date spread: 1 days",
+      "7 commits touch source files out of 63 total"
+    ]
+  },
+  "fix_candidates": [
+    {
+      "sha": "dae107b",
+      "full_sha": "dae107be072bd73888f6c16e6be9724238bedab6",
+      "date": "2026-11-06",
+      "author": "Claude",
+      "subject": "Replace Pyth with a Uniswap v4 TWAP oracle and trade through v4 pools",
+      "score": 13,
+      "reasons": [
+        "unclassified",
+        "involves oracle/pricing",
+        "adds runtime guards (+6/-3)",
+        "tightens access control (+8/-7)",
+        "changes token transfer logic",
+        "changes accounting/balance logic",
+        "spans 5 security domains (access_control, fund_flows, liquidation, oracle_price, state_machines)",
+        "large change (>500 source lines)",
+        "includes test changes"
+      ],
+      "source_files_touched": [
+        "src/LPVault.sol",
+        "src/OracleVerifier.sol",
+        "src/PositionManager.sol",
+        "src/UniV4TwapOracle.sol",
+        "src/V4SwapRouter.sol",
+        "src/interfaces/IProtocol.sol",
+        "src/interfaces/IPyth.sol"
+      ],
+      "test_changed": true,
+      "lines_changed": 744
+    },
+    {
+      "sha": "d641ac1",
+      "full_sha": "d641ac1ff2014a869d397dae01e1dfe3bb07003e",
+      "date": "2026-11-07",
+      "author": "Niraj Kamdar",
+      "subject": "feat(vault): add owner-configurable total and per-address deposit caps and denylist check",
+      "score": 11,
+      "reasons": [
+        "feature addition",
+        "tightens access control (+1/-0)",
+        "changes token transfer logic",
+        "changes accounting/balance logic",
+        "spans 5 security domains (access_control, fund_flows, liquidation, oracle_price, state_machines)",
+        "focused change (1 source files)",
+        "includes test changes"
+      ],
+      "source_files_touched": [
+        "src/LPVault.sol"
+      ],
+      "test_changed": true,
+      "lines_changed": 44
+    },
+    {
+      "sha": "d76d339",
+      "full_sha": "d76d3392654941789f47154ab0339b3e7e5f8411",
+      "date": "2026-11-06",
+      "author": "Claude",
+      "subject": "Add core contracts for leveraged spot prop trading on Arc",
+      "score": 10,
+      "reasons": [
+        "feature addition",
+        "adds runtime guards (+4/-0)",
+        "tightens access control (+32/-0)",
+        "changes token transfer logic",
+        "changes accounting/balance logic",
+        "spans 5 security domains (access_control, fund_flows, liquidation, oracle_price, state_machines)",
+        "large change (>500 source lines)",
+        "includes test changes"
+      ],
+      "source_files_touched": [
+        "src/InsuranceReserve.sol",
+        "src/LPVault.sol",
+        "src/OracleVerifier.sol",
+        "src/PositionManager.sol",
+        "src/TraderProxy.sol",
+        "src/interfaces/IProtocol.sol",
+        "src/interfaces/IPyth.sol",
+        "src/libraries/ArcConstants.sol"
+      ],
+      "test_changed": true,
+      "lines_changed": 1316
+    },
+    {
+      "sha": "3b8d518",
+      "full_sha": "3b8d5181f40e9eb54284555ce96c894d4839468c",
+      "date": "2026-11-07",
+      "author": "Niraj Kamdar",
+      "subject": "feat(position-manager): add trader levels with auto promotion/demotion and a denylist",
+      "score": 9,
+      "reasons": [
+        "feature addition",
+        "tightens access control (+3/-0)",
+        "changes accounting/balance logic",
+        "spans 5 security domains (access_control, fund_flows, liquidation, oracle_price, state_machines)",
+        "focused change (2 source files)",
+        "includes test changes"
+      ],
+      "source_files_touched": [
+        "src/PositionManager.sol",
+        "src/interfaces/IProtocol.sol"
+      ],
+      "test_changed": true,
+      "lines_changed": 184
+    },
+    {
+      "sha": "8b96353",
+      "full_sha": "8b96353206fb13f23edf6633341d193cd99862fc",
+      "date": "2026-11-07",
+      "author": "Niraj Kamdar",
+      "subject": "feat(oracle): add Chainlink oracle with staleness check and v4 pool routing",
+      "score": 8,
+      "reasons": [
+        "feature addition",
+        "tightens access control (+1/-0)",
+        "spans 2 security domains (access_control, oracle_price)",
+        "focused change (1 source files)",
+        "includes test changes"
+      ],
+      "source_files_touched": [
+        "src/ChainlinkOracle.sol"
+      ],
+      "test_changed": true,
+      "lines_changed": 98
+    },
+    {
+      "sha": "b641acb",
+      "full_sha": "b641acb5051744e1db21f2e767d8a6fc52f1ce13",
+      "date": "2026-11-07",
+      "author": "Niraj Kamdar",
+      "subject": "feat(position-manager): make PositionManager UUPS-upgradeable with settable oracle",
+      "score": 8,
+      "reasons": [
+        "feature addition",
+        "tightens access control (+3/-0)",
+        "spans 5 security domains (access_control, fund_flows, liquidation, oracle_price, state_machines)",
+        "focused change (1 source files)",
+        "includes test changes"
+      ],
+      "source_files_touched": [
+        "src/PositionManager.sol"
+      ],
+      "test_changed": true,
+      "lines_changed": 86
+    },
+    {
+      "sha": "a0fedc9",
+      "full_sha": "a0fedc9f60d33b7e7fb0b02c28fa6cf83417c7d1",
+      "date": "2026-11-06",
+      "author": "Claude",
+      "subject": "Add LP withdrawal queue, stress bonus pot and solvency gate",
+      "score": 7,
+      "reasons": [
+        "feature addition",
+        "tightens access control (+13/-3)",
+        "changes token transfer logic",
+        "changes accounting/balance logic",
+        "spans 5 security domains (access_control, fund_flows, liquidation, oracle_price, state_machines)",
+        "large change (>500 source lines)",
+        "includes test changes"
+      ],
+      "source_files_touched": [
+        "src/LPVault.sol",
+        "src/PositionManager.sol",
+        "src/interfaces/IERC7540.sol",
+        "src/interfaces/IProtocol.sol"
+      ],
+      "test_changed": true,
+      "lines_changed": 757
+    },
+    {
+      "sha": "df74b20",
+      "full_sha": "df74b20e637a78a918f49c9a66e882a21f58f93d",
+      "date": "2026-11-07",
+      "author": "Niraj Kamdar",
+      "subject": "fix(sim): write non-finite values as null in results.json",
+      "score": 4,
+      "reasons": [
+        "bug fix"
+      ],
+      "source_files_touched": [],
+      "test_changed": false,
+      "lines_changed": 0
+    },
+    {
+      "sha": "8ab9eb8",
+      "full_sha": "8ab9eb8997161f9c2bdb35fbf6c73538df7e3c4d",
+      "date": "2026-11-07",
+      "author": "Niraj Kamdar",
+      "subject": "fix(deploy): configure default level 0 in deployArc",
+      "score": 4,
+      "reasons": [
+        "bug fix"
+      ],
+      "source_files_touched": [],
+      "test_changed": false,
+      "lines_changed": 0
+    },
+    {
+      "sha": "d813589",
+      "full_sha": "d813589d4055ebb1efa5fa7bd7574f489bd4bf2e",
+      "date": "2026-11-06",
+      "author": "Niraj Kamdar",
+      "subject": "feat(landing): redesign landing page and fix calculator",
+      "score": 4,
+      "reasons": [
+        "bug fix"
+      ],
+      "source_files_touched": [],
+      "test_changed": false,
+      "lines_changed": 0
+    }
+  ],
+  "dangerous_area_changes": {
+    "access_control": {
+      "commit_count": 7,
+      "files": [
+        "src/ChainlinkOracle.sol",
+        "src/InsuranceReserve.sol",
+        "src/LPVault.sol",
+        "src/PositionManager.sol",
+        "src/TraderProxy.sol",
+        "src/UniV4TwapOracle.sol"
+      ],
+      "commits": [
+        {
+          "sha": "d641ac1",
+          "date": "2026-11-07",
+          "subject": "feat(vault): add owner-configurable total and per-address deposit caps and denyl"
+        },
+        {
+          "sha": "3b8d518",
+          "date": "2026-11-07",
+          "subject": "feat(position-manager): add trader levels with auto promotion/demotion and a den"
+        },
+        {
+          "sha": "8b96353",
+          "date": "2026-11-07",
+          "subject": "feat(oracle): add Chainlink oracle with staleness check and v4 pool routing"
+        },
+        {
+          "sha": "b641acb",
+          "date": "2026-11-07",
+          "subject": "feat(position-manager): make PositionManager UUPS-upgradeable with settable orac"
+        },
+        {
+          "sha": "dae107b",
+          "date": "2026-11-06",
+          "subject": "Replace Pyth with a Uniswap v4 TWAP oracle and trade through v4 pools"
+        },
+        {
+          "sha": "a0fedc9",
+          "date": "2026-11-06",
+          "subject": "Add LP withdrawal queue, stress bonus pot and solvency gate"
+        },
+        {
+          "sha": "d76d339",
+          "date": "2026-11-06",
+          "subject": "Add core contracts for leveraged spot prop trading on Arc"
+        }
+      ]
+    },
+    "fund_flows": {
+      "commit_count": 6,
+      "files": [
+        "src/InsuranceReserve.sol",
+        "src/LPVault.sol",
+        "src/PositionManager.sol",
+        "src/TraderProxy.sol",
+        "src/V4SwapRouter.sol",
+        "src/interfaces/IERC7540.sol",
+        "src/interfaces/IProtocol.sol"
+      ],
+      "commits": [
+        {
+          "sha": "d641ac1",
+          "date": "2026-11-07",
+          "subject": "feat(vault): add owner-configurable total and per-address deposit caps and denyl"
+        },
+        {
+          "sha": "3b8d518",
+          "date": "2026-11-07",
+          "subject": "feat(position-manager): add trader levels with auto promotion/demotion and a den"
+        },
+        {
+          "sha": "b641acb",
+          "date": "2026-11-07",
+          "subject": "feat(position-manager): make PositionManager UUPS-upgradeable with settable orac"
+        },
+        {
+          "sha": "dae107b",
+          "date": "2026-11-06",
+          "subject": "Replace Pyth with a Uniswap v4 TWAP oracle and trade through v4 pools"
+        },
+        {
+          "sha": "a0fedc9",
+          "date": "2026-11-06",
+          "subject": "Add LP withdrawal queue, stress bonus pot and solvency gate"
+        },
+        {
+          "sha": "d76d339",
+          "date": "2026-11-06",
+          "subject": "Add core contracts for leveraged spot prop trading on Arc"
+        }
+      ]
+    },
+    "oracle_price": {
+      "commit_count": 7,
+      "files": [
+        "src/ChainlinkOracle.sol",
+        "src/LPVault.sol",
+        "src/PositionManager.sol",
+        "src/UniV4TwapOracle.sol",
+        "src/V4SwapRouter.sol",
+        "src/interfaces/IProtocol.sol"
+      ],
+      "commits": [
+        {
+          "sha": "d641ac1",
+          "date": "2026-11-07",
+          "subject": "feat(vault): add owner-configurable total and per-address deposit caps and denyl"
+        },
+        {
+          "sha": "3b8d518",
+          "date": "2026-11-07",
+          "subject": "feat(position-manager): add trader levels with auto promotion/demotion and a den"
+        },
+        {
+          "sha": "8b96353",
+          "date": "2026-11-07",
+          "subject": "feat(oracle): add Chainlink oracle with staleness check and v4 pool routing"
+        },
+        {
+          "sha": "b641acb",
+          "date": "2026-11-07",
+          "subject": "feat(position-manager): make PositionManager UUPS-upgradeable with settable orac"
+        },
+        {
+          "sha": "dae107b",
+          "date": "2026-11-06",
+          "subject": "Replace Pyth with a Uniswap v4 TWAP oracle and trade through v4 pools"
+        },
+        {
+          "sha": "a0fedc9",
+          "date": "2026-11-06",
+          "subject": "Add LP withdrawal queue, stress bonus pot and solvency gate"
+        },
+        {
+          "sha": "d76d339",
+          "date": "2026-11-06",
+          "subject": "Add core contracts for leveraged spot prop trading on Arc"
+        }
+      ]
+    },
+    "liquidation": {
+      "commit_count": 6,
+      "files": [
+        "src/InsuranceReserve.sol",
+        "src/LPVault.sol",
+        "src/PositionManager.sol",
+        "src/interfaces/IProtocol.sol"
+      ],
+      "commits": [
+        {
+          "sha": "d641ac1",
+          "date": "2026-11-07",
+          "subject": "feat(vault): add owner-configurable total and per-address deposit caps and denyl"
+        },
+        {
+          "sha": "3b8d518",
+          "date": "2026-11-07",
+          "subject": "feat(position-manager): add trader levels with auto promotion/demotion and a den"
+        },
+        {
+          "sha": "b641acb",
+          "date": "2026-11-07",
+          "subject": "feat(position-manager): make PositionManager UUPS-upgradeable with settable orac"
+        },
+        {
+          "sha": "dae107b",
+          "date": "2026-11-06",
+          "subject": "Replace Pyth with a Uniswap v4 TWAP oracle and trade through v4 pools"
+        },
+        {
+          "sha": "a0fedc9",
+          "date": "2026-11-06",
+          "subject": "Add LP withdrawal queue, stress bonus pot and solvency gate"
+        },
+        {
+          "sha": "d76d339",
+          "date": "2026-11-06",
+          "subject": "Add core contracts for leveraged spot prop trading on Arc"
+        }
+      ]
+    },
+    "state_machines": {
+      "commit_count": 6,
+      "files": [
+        "src/LPVault.sol",
+        "src/PositionManager.sol"
+      ],
+      "commits": [
+        {
+          "sha": "d641ac1",
+          "date": "2026-11-07",
+          "subject": "feat(vault): add owner-configurable total and per-address deposit caps and denyl"
+        },
+        {
+          "sha": "3b8d518",
+          "date": "2026-11-07",
+          "subject": "feat(position-manager): add trader levels with auto promotion/demotion and a den"
+        },
+        {
+          "sha": "b641acb",
+          "date": "2026-11-07",
+          "subject": "feat(position-manager): make PositionManager UUPS-upgradeable with settable orac"
+        },
+        {
+          "sha": "dae107b",
+          "date": "2026-11-06",
+          "subject": "Replace Pyth with a Uniswap v4 TWAP oracle and trade through v4 pools"
+        },
+        {
+          "sha": "a0fedc9",
+          "date": "2026-11-06",
+          "subject": "Add LP withdrawal queue, stress bonus pot and solvency gate"
+        },
+        {
+          "sha": "d76d339",
+          "date": "2026-11-06",
+          "subject": "Add core contracts for leveraged spot prop trading on Arc"
+        }
+      ]
+    }
+  },
+  "late_changes": {
+    "window_days": 30,
+    "cutoff_date": "2026-10-08",
+    "latest_commit_date": "2026-11-07",
+    "late_commits": [
+      {
+        "sha": "d641ac1",
+        "date": "2026-11-07",
+        "author": "Niraj Kamdar",
+        "subject": "feat(vault): add owner-configurable total and per-address deposit caps and denyl",
+        "source_files": [
+          "src/LPVault.sol"
+        ],
+        "test_changed": true,
+        "lines_changed": 44
+      },
+      {
+        "sha": "3b8d518",
+        "date": "2026-11-07",
+        "author": "Niraj Kamdar",
+        "subject": "feat(position-manager): add trader levels with auto promotion/demotion and a den",
+        "source_files": [
+          "src/PositionManager.sol",
+          "src/interfaces/IProtocol.sol"
+        ],
+        "test_changed": true,
+        "lines_changed": 184
+      },
+      {
+        "sha": "8b96353",
+        "date": "2026-11-07",
+        "author": "Niraj Kamdar",
+        "subject": "feat(oracle): add Chainlink oracle with staleness check and v4 pool routing",
+        "source_files": [
+          "src/ChainlinkOracle.sol"
+        ],
+        "test_changed": true,
+        "lines_changed": 98
+      },
+      {
+        "sha": "b641acb",
+        "date": "2026-11-07",
+        "author": "Niraj Kamdar",
+        "subject": "feat(position-manager): make PositionManager UUPS-upgradeable with settable orac",
+        "source_files": [
+          "src/PositionManager.sol"
+        ],
+        "test_changed": true,
+        "lines_changed": 86
+      },
+      {
+        "sha": "dae107b",
+        "date": "2026-11-06",
+        "author": "Claude",
+        "subject": "Replace Pyth with a Uniswap v4 TWAP oracle and trade through v4 pools",
+        "source_files": [
+          "src/LPVault.sol",
+          "src/OracleVerifier.sol",
+          "src/PositionManager.sol",
+          "src/UniV4TwapOracle.sol",
+          "src/V4SwapRouter.sol",
+          "src/interfaces/IProtocol.sol",
+          "src/interfaces/IPyth.sol"
+        ],
+        "test_changed": true,
+        "lines_changed": 744
+      },
+      {
+        "sha": "a0fedc9",
+        "date": "2026-11-06",
+        "author": "Claude",
+        "subject": "Add LP withdrawal queue, stress bonus pot and solvency gate",
+        "source_files": [
+          "src/LPVault.sol",
+          "src/PositionManager.sol",
+          "src/interfaces/IERC7540.sol",
+          "src/interfaces/IProtocol.sol"
+        ],
+        "test_changed": true,
+        "lines_changed": 757
+      },
+      {
+        "sha": "d76d339",
+        "date": "2026-11-06",
+        "author": "Claude",
+        "subject": "Add core contracts for leveraged spot prop trading on Arc",
+        "source_files": [
+          "src/InsuranceReserve.sol",
+          "src/LPVault.sol",
+          "src/OracleVerifier.sol",
+          "src/PositionManager.sol",
+          "src/TraderProxy.sol",
+          "src/interfaces/IProtocol.sol",
+          "src/interfaces/IPyth.sol",
+          "src/libraries/ArcConstants.sol"
+        ],
+        "test_changed": true,
+        "lines_changed": 1316
+      }
+    ],
+    "source_without_test_count": 0,
+    "total_late_source_commits": 7
+  },
+  "forked_deps": {
+    "detected_libs": [],
+    "removed_submodules": []
+  },
+  "tech_debt": {
+    "total_count": 0,
+    "items": [],
+    "files_with_debt": 0,
+    "capped": false
+  },
+  "dev_patterns": {
+    "test_co_change_rate": 1.0,
+    "fix_without_test_rate": 0.3,
+    "avg_commit_size": 461.3,
+    "avg_commit_size_note": null,
+    "single_developer_pct": 0.885,
+    "top_contributor": "Claude",
+    "contributor_breakdown": [
+      {
+        "author": "Claude",
+        "lines_added": 2578,
+        "pct": 0.885
+      },
+      {
+        "author": "Niraj Kamdar",
+        "lines_added": 336,
+        "pct": 0.115
+      }
+    ]
+  }
+}

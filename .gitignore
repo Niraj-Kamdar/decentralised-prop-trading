@@ -7,3 +7,5 @@ broadcast/
 deployments/fork.json
 sim/data/
 __pycache__/
+.solidity-auditor/
+foundry.lock
