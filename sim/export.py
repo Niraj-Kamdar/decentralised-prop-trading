@@ -16,7 +16,7 @@ import numpy as np
 
 import hl
 from data import load
-from model import DAY, Demand, Params, Sim, settle
+from model import DAY, Demand, LpFlow, Params, Sim, settle
 from run import CRASH_DEMAND, CRASHES, crash_job, job
 
 START, END = "2020-01-01", "2026-11-01"
@@ -252,6 +252,72 @@ def level_sweep_job(spec):
     return loss
 
 
+CAL_TVLS = (10e3, 100e3, 1e6)
+
+
+def split(r):
+    """Fee / profit-cut / idle contributions that sum to APY: each part's share of total income times APY.
+    (summary()'s parts are compounded income over starting TVL, so they do not add up to the share-price APY.)"""
+    tot = r["roll"] + r["profit"] + r["idle"]
+    return {k: float(r[k] / tot * r["apy"]) for k in ("roll", "profit", "idle")} if tot > 0 else dict(roll=0.0, profit=0.0, idle=0.0)
+
+
+def mean_spread(xs):
+    return dict(mean=float(np.mean(xs)), min=float(np.min(xs)), max=float(np.max(xs)), std=float(np.std(xs)))
+
+
+LP_PREMIUMS = (0.01, 0.03, 0.055)
+
+
+def bursts(day):
+    """Distribution of the 30-day trailing share-price APY, its best/worst windows, and TVL re-settling after the
+    largest one-day share-price drop (ponytail: settled = TVL within 10% of its median 180-270 days later, for 30 days)."""
+    px, tv, t0 = day[:, 5], day[:, 0], date.fromisoformat(START)
+    a = (px[30:] / px[:-30]) ** (365 / 30) - 1
+    dt = lambda i: str(t0 + timedelta(int(i)))  # noqa: E731
+    lo, hi = int(a.argmin()), int(a.argmax())
+    shock = int((px[1:] / px[:-1]).argmin()) + 1
+    ref_w = tv[shock + 180: shock + 270] if shock + 180 < len(tv) else tv[-90:]
+    ok = np.abs(tv / np.median(ref_w) - 1) < 0.10
+    settle = next((i - shock for i in range(shock, len(tv) - 30) if ok[i: i + 30].all()), None)
+    return dict(p10=float(np.percentile(a, 10)), p50=float(np.percentile(a, 50)), p90=float(np.percentile(a, 90)),
+                share_above_10pct=float((a > 0.10).mean()), share_below_idle=float((a < BASE_P.idle_apr).mean()),
+                worst=dict(apy=float(a[lo]), start=dt(lo), end=dt(lo + 30)),
+                best=dict(apy=float(a[hi]), start=dt(hi), end=dt(hi + 30)),
+                shock=dict(date=dt(shock), drop=float(px[shock] / px[shock - 1] - 1), tvl_resettle_days=settle))
+
+
+def lp_job(spec):
+    """Elastic-TVL run: equilibrium = last year of the daily series; also yearly APY and TVL on each crash date."""
+    d, premium, seed, tvl0, cap = spec
+    s = Sim(load(START, END), BASE_P, d, tvl0, seed=seed, lp=LpFlow(premium=premium, max_rate=cap)).run()
+    r = s.lp_report(years=1)
+    day = np.array(s.daily)
+    r["tvl_median"] = float(np.median(day[-365:, 0]))
+    r.pop("tvl_daily")
+    t0 = date.fromisoformat(START)
+    ix = lambda iso: min(max((date.fromisoformat(iso) - t0).days, 0), len(day) - 1)  # noqa: E731
+    r["apy_by_year"] = {n: float(day[ix(b), 5] / day[ix(a), 5] - 1) for n, (a, b) in YEARS.items()}
+    r["tvl_weekly"] = day[::7, 0].round(0).tolist()
+    r["bursts"] = bursts(day)
+    r["tvl_at_crash"] = {n: float(day[ix(c), 0]) for n, c in CRASHES.items()}
+    return r
+
+
+def lp_crash(args):
+    """Crash losses at the elastic TVL on the crash date."""
+    d, tvls = args
+    out = {}
+    for n, v in tvls.items():
+        for sc, (p, cd) in {"base": (BASE_P, CRASH_DEMAND), "stress": (STRESS_P, STRESS_D)}.items():
+            cd = replace(cd, emp=d.emp) if d.emp is not None else cd
+            if sc == "stress" and d.emp is not None:
+                cd = replace(cd, emp=d.emp | dict(p_10x=1.0))
+            r = crash_job((n, p, cd, v, 0.0, 0))
+            out.setdefault(n, dict(tvl=v))[sc] = dict(usd=float(r["bad_debt"]), pct_tvl=float(r["bad_debt"] / v))
+    return out
+
+
 def main(out):
     accts = hl.load(600)
     with ProcessPoolExecutor() as ex:
@@ -275,6 +341,21 @@ def main(out):
         # Experiments E1-E4
         f_exp = ex.map(run_single_experiment, EXPERIMENT_CONFIGS)
         sweep = [[ex.submit(level_sweep_job, (c, k)) for k in ("syn", "hl", "crash")] for c in LEVEL_SWEEP]
+
+        emp = hl.empirical(accts)
+        cal_d = replace(BASE_D, emp=emp)
+        cal_crash = {"base": (BASE_P, replace(CRASH_DEMAND, emp=emp)),
+                     "stress": (STRESS_P, replace(CRASH_DEMAND, emp=emp | dict(p_10x=1.0)))}
+        f_cal_full = [ex.submit(job, (START, END, BASE_P, cal_d, v, 0.0, 0)) for v in CAL_TVLS]
+        lp_runs = {(k, pr): [ex.submit(lp_job, (d, pr, sd, 1e5, 0.02)) for sd in SEEDS]
+                   for k, d in (("calibrated", cal_d), ("synthetic", BASE_D)) for pr in LP_PREMIUMS}
+        conv_runs = {(k, v): ex.submit(lp_job, (d, 0.03, 0, v, 0.02))
+                     for k, d in (("calibrated", cal_d), ("synthetic", BASE_D)) for v in (1e4, 1e6)}
+        cap_runs = {(k, c): ex.submit(lp_job, (d, 0.03, 0, 1e5, c))
+                    for k, d in (("calibrated", cal_d), ("synthetic", BASE_D)) for c in (0.005, 0.05)}
+        lp_res = {k: [f.result() for f in fs] for k, fs in lp_runs.items()}
+        f_lp_crash = {k: ex.submit(lp_crash, (cal_d if k[0] == "calibrated" else BASE_D, rs[0]["tvl_at_crash"]))
+                      for k, rs in lp_res.items()}
 
         years, crash, drops, grid, rep = list(f_years), list(f_crash), list(f_drop), list(f_map), list(f_rep)
         twap_crash, cl_crash = list(f_twap_crash), list(f_cl_crash)
@@ -329,6 +410,29 @@ def main(out):
         time_to_l2_days_median=round(float(np.median(r_p2)), 1) if r_p2 else None,
     )
 
+    demand_calibrated = {}
+    for v, f in zip(CAL_TVLS, f_cal_full):
+        r = f.result()
+        demand_calibrated[f"{int(v)}"] = dict(tvl=v, apy=float(r["apy"]), util=float(r["util"]), seeds=1, split_apy=split(r))
+    ms = lambda rs, k: mean_spread([r[k] for r in rs])  # noqa: E731
+    lp_equilibrium = {k: {} for k in ("synthetic", "calibrated")}
+    for (k, pr), rs in lp_res.items():
+        lp_equilibrium[k][f"{pr}"] = dict(
+            seed_tvl=1e5, premium=pr, hurdle=BASE_P.idle_apr + pr, idle_apr=BASE_P.idle_apr, max_rate=0.02,
+            tvl_median_last_year=ms(rs, "tvl_median"), apy=ms(rs, "apy"), util=ms(rs, "util"),
+            premium_per_lent=ms(rs, "premium_per_lent"), split_apy={q: float(np.mean([split(r)[q] for r in rs])) for q in ("roll", "profit", "idle")},
+            apy_by_year={y: float(np.mean([r["apy_by_year"][y] for r in rs])) for y in YEARS},
+            tvl_weekly=rs[0]["tvl_weekly"], bursts=rs[0]["bursts"], seeds=len(rs), crash_lp_loss=f_lp_crash[(k, pr)].result())
+    for (k, c), f in cap_runs.items():
+        r = f.result()
+        lp_equilibrium[k].setdefault("flow_cap_p3", {})[f"{c}"] = dict(
+            max_rate=c, tvl_median_last_year=r["tvl_median"], apy=r["apy"], util=r["util"], bursts=r["bursts"],
+            tvl_weekly=r["tvl_weekly"])
+    for (k, v), f in conv_runs.items():
+        r = f.result()
+        lp_equilibrium[k].setdefault("convergence_p3", {})[f"{int(v)}"] = dict(
+            seed_tvl=v, tvl_median_last_year=r["tvl_median"], apy=r["apy"], util=r["util"], tvl_weekly=r["tvl_weekly"])
+
     syn_level_stats = head.pop("level_stats")
 
     res = dict(
@@ -349,6 +453,7 @@ def main(out):
             dict(min_hold_h=None, synthetic=True) | pick(syn.result(), *YIELD_KEYS)])),
         levels=dict(synthetic=syn_level_stats, real=real_level_stats),
         experiments={exp["id"]: exp for exp in exp_results},
+        demand_calibrated=demand_calibrated, lp_equilibrium=lp_equilibrium,
         levels_sweep={c[0]: dict(label=c[1], synthetic=f[0].result(), hyperliquid=f[1].result(),
                                  crash_lp_loss=f[2].result()) for c, f in zip(LEVEL_SWEEP, sweep)},
     )
