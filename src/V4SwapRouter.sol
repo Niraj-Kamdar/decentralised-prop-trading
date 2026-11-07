@@ -87,6 +87,7 @@ contract V4SwapRouter is IV4SwapRouter, IUnlockCallback {
         (int128 dIn, int128 dOut) =
             d.zeroForOne ? (delta.amount0(), delta.amount1()) : (delta.amount1(), delta.amount0());
         uint256 paid = uint256(int256(-dIn)); // may be < amountIn if the pool ran out of liquidity
+        if (dOut <= 0) revert InsufficientOutput(d.minAmountOut, 0);
         uint256 amountOut = uint256(int256(dOut));
         if (amountOut < d.minAmountOut) revert InsufficientOutput(d.minAmountOut, amountOut);
 
