@@ -72,6 +72,7 @@ export default function Landing() {
           <Logo />
           <nav className="hidden items-center gap-7 text-sm text-fg2 md:flex" aria-label="Sections">
             <a href="#how" className="transition-colors hover:text-accent">How it works</a>
+            <Link href="/backtest" className="transition-colors hover:text-accent">Backtest</Link>
             <a href="#start" className="transition-colors hover:text-accent">Trade or earn</a>
             <a href="#faq" className="transition-colors hover:text-accent">FAQ</a>
           </nav>
