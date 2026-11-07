@@ -161,12 +161,14 @@ def replay(t, start, end, p, tvl=1e6, vol_x=50.0, p_10x=0.8, seed=0, insurance=0
     hold = np.maximum((t["hold_h"][m] * 60).astype(int), 1)
     keep = (i0 >= 0) & (i0 < minute(end) - minute(start))
     i0, hold, cost, coin = i0[keep], hold[keep], t["cost"][m][keep], t["coin"][m][keep]
+    users = t["user"][m][keep]
     s = Sim(load(start, end), p, None, tvl, insurance, seed=seed)
     years = s.T / (365 * 1440)
     k = vol_x * tvl * years / cost.sum()
     tier = np.where(np.random.default_rng(seed).random(len(cost)) < p_10x, 10, 5)
-    for ti, a, tr, n, h in zip(i0, (coin == "BTC").astype(int), tier, cost * k, hold):
-        s.book.setdefault(int(ti), []).append((int(a), int(tr), max(n, p.min_notional) / tr, int(h)))
+    for ti, a, tr, n, h, u in zip(i0, (coin == "BTC").astype(int), tier, cost * k, hold, users):
+        tr_id = s.get_trader(u).id
+        s.book.setdefault(int(ti), []).append((int(a), int(tr), max(n, p.min_notional) / tr, int(h), tr_id))
     s.run()
     s.scale = k
     return s
