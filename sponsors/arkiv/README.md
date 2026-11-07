@@ -16,13 +16,13 @@ We answer both with a minute-by-minute backtest (6.8 years of Binance prices and
 
 All entities are written by **`0x8F24d5FF02c5FFaCDAa1741dC7a20d37f363f69d`** on the Rabdi testnet (chain id 7794095).
 
-First publish, run `5847faa@2026-11-06T23:50:44+00:00`:
+Latest publish, run `df74b20@2026-11-07T01:03:27+00:00`:
 
 | tx | contents |
 |---|---|
-| `0x7620f7df6035840da0075e8e978279e988c3689056a3c913ebd891451c96dbc9` | 35 entities: 7 result sections, 21 crash rows, 7 yearly-APY rows |
-| `0x226969fe95c3472d4a8c84ffc188abb3355e0d833cd59e723575869e7266eaea` | trader dataset, part 1/2 |
-| `0x0ae2084d23a97f67a8ba9d2e372d13f2e1a9db5c63de80576ee703a16995d04d` | trader dataset, part 2/2 |
+| `0x04998cb144e0dfdf6c9c4dfefd1d1a2ceed45a5cf581157aa0b08e157a64efcd` | 38 entities: 10 result sections, 21 crash rows, 7 yearly-APY rows |
+| `0xc6be317640bf0fe59275c11cfe7f8cf54cfbc1b12bd24d9d0fa3c8806cc9acdd` | trader dataset, part 1/2 |
+| `0x373d9ddca61f6c1fdc48895be27cb219700e55e9e83428efd88e58d05be2bbf4` | trader dataset, part 2/2 |
 
 Explorer: https://rabdi.explorer.arkiv.network
 
@@ -48,10 +48,10 @@ const q = (scenario: string) => pub.select({ event: true, lp_loss_usd: true }).f
   .ownedBy("0x8F24d5FF02c5FFaCDAa1741dC7a20d37f363f69d").limit(100).fetch();
 
 console.log("base:", (await q("base")).entities);                      // [] -> no LP loss in any of 7 crashes
-console.log("stress + 30-min outage:", (await q("stress_outage_30m")).entities); // covid ~$4.9k, oct-10 ~$2.6k on a $1M vault
+console.log("stress + 30-min outage:", (await q("stress_outage_30m")).entities); // [] -> none, even with keepers offline for 30 min
 ```
 
-Output on the first publish: `base: []`, and `stress + 30-min outage:` COVID $4,933 and Oct-10 $2,623.
+Output on run `df74b20`: both queries return `[]`. Lenders lost $0 in all 7 crashes in every scenario, including `stress` and `stress_outage_30m`.
 
 ## Code
 - Writer: [`frontend/scripts/publish-arkiv.ts`](../../frontend/scripts/publish-arkiv.ts) (`@arkiv-network/sdk` 1.0.1)
