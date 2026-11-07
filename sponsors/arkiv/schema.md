@@ -1,6 +1,6 @@
 # Schema
 
-All entities are owned by the publisher wallet **`0x8F24d5FF02c5FFaCDAa1741dC7a20d37f363f69d`**, written with `@arkiv-network/sdk` named schemas, so each carries the indexed `arkiv.schema` tag. Every entity from one simulator run shares a `run` id `<git commit>@<generated UTC>`, e.g. `5847faa@2026-11-06T23:50:44+00:00`.
+All entities are owned by the publisher wallet **`0x8F24d5FF02c5FFaCDAa1741dC7a20d37f363f69d`**, written with `@arkiv-network/sdk` named schemas, so each carries the indexed `arkiv.schema` tag. Every entity from one simulator run shares a `run` id `<git commit>@<generated UTC>`, e.g. `df74b20@2026-11-07T01:03:27+00:00`.
 
 **Expiry: 180 days** (`ExpirationTime.fromDays(180)`, near the 182.5-day maximum). A run is a snapshot of the simulator at one commit. Re-publishing writes a new run, readers always take the newest, and old runs expire on their own instead of piling up. No creation flags (not readonly), so the owner can extend a run that's still current.
 

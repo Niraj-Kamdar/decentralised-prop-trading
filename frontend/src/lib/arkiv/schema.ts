@@ -12,6 +12,9 @@ export const SECTIONS = [
   "real_traders",
 ] as const;
 
+// Read when present; runs published before these sections existed still load.
+export const OPTIONAL_SECTIONS = ["lp_equilibrium"] as const;
+
 export const SCENARIOS = ["base", "stress", "stress_outage_30m"] as const;
 
 export const Results = defineSchema("fulcrum.results", {

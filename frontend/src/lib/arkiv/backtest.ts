@@ -1,5 +1,5 @@
 import { gunzipSync } from "node:zlib";
-import { SCENARIOS, SECTIONS } from "./schema";
+import { OPTIONAL_SECTIONS, SCENARIOS, SECTIONS } from "./schema";
 
 export type CrashRow = {
   event: string;
@@ -24,7 +24,7 @@ export type Backtest = {
   run: string;
   commit: string;
   published: number; // unix seconds
-  sections: Record<(typeof SECTIONS)[number], any>;
+  sections: Record<(typeof SECTIONS)[number], any> & Partial<Record<(typeof OPTIONAL_SECTIONS)[number], any>>;
   crashes: CrashRow[];
   years: YearRow[];
 };
@@ -46,18 +46,18 @@ export function assembleBacktest(
 
   const sectionsMap = new Map<string, { commit: string; published: number; body: Uint8Array }>();
   for (const row of sectionRows) {
-    if ((SECTIONS as readonly string[]).includes(row.section)) {
+    if ([...SECTIONS, ...OPTIONAL_SECTIONS].includes(row.section as never)) {
       if (!sectionsMap.has(row.section)) {
         sectionsMap.set(row.section, row);
       }
     }
   }
 
-  if (sectionsMap.size !== SECTIONS.length) {
+  if (SECTIONS.some((name) => !sectionsMap.has(name))) {
     return null;
   }
 
-  const sections = {} as Record<(typeof SECTIONS)[number], any>;
+  const sections = {} as Backtest["sections"];
   for (const name of SECTIONS) {
     const row = sectionsMap.get(name);
     if (!row) return null;
@@ -65,6 +65,17 @@ export function assembleBacktest(
       sections[name] = decodeSection(row.body);
     } catch {
       return null;
+    }
+  }
+
+  for (const name of OPTIONAL_SECTIONS) {
+    const row = sectionsMap.get(name);
+    if (row) {
+      try {
+        sections[name] = decodeSection(row.body);
+      } catch {
+        /* optional: a bad optional section never hides the required ones */
+      }
     }
   }
 

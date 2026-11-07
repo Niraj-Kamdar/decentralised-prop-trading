@@ -1,3 +1,5 @@
+import { usd0 } from "@/lib/format";
+
 // Landing-page illustrations. Plain HTML/CSS so they stay crisp, responsive and readable by screen readers.
 // Colour = role, used the same way in every picture: trader = accent, lenders = brand, insurance = teal.
 
@@ -133,6 +135,8 @@ function SplitBar({ title, slices, note }: { title: string; slices: Slice[]; not
 
 // Trader level, PR #10: LP 10%, treasury 3% split 50/50 insurance/Fulcrum; Base keeper bounty $0.50.
 // Liquidation sells at -8% with 0.1% slippage: $919.08 out. Swap for Arkiv's `example` section once the sim re-runs.
+// Hand-computed. sim results.json `example` (run df74b20) now has the same PR #10 split on the win side but a $920 liquidation
+// position vs $919 here, so it is not wired; bind it once the sim reports the same close price.
 export function Endings() {
   return (
     <div className="grid gap-5 md:grid-cols-2">
@@ -195,19 +199,21 @@ export function Levels() {
 }
 
 const CRASHES = [
-  { n: "COVID", d: "2020-03-12" },
-  { n: "May 2021", d: "2021-05-19" },
-  { n: "LUNA", d: "2022-05-11" },
-  { n: "FTX", d: "2022-11-08" },
-  { n: "Yen carry", d: "2024-08-05" },
-  { n: "Tariffs", d: "2025-02-03" },
-  { n: "Oct 10", d: "2025-10-10" },
+  { k: "covid", n: "COVID", d: "2020-03-12" },
+  { k: "may-21", n: "May 2021", d: "2021-05-19" },
+  { k: "luna", n: "LUNA", d: "2022-05-11" },
+  { k: "ftx", n: "FTX", d: "2022-11-08" },
+  { k: "yen-carry", n: "Yen carry", d: "2024-08-05" },
+  { k: "tariffs", n: "Tariffs", d: "2025-02-03" },
+  { k: "oct-10", n: "Oct 10", d: "2025-10-10" },
 ];
 const T0 = Date.parse("2020-01-01");
 const T1 = Date.parse("2026-11-01");
 
 /** Proof: the seven crashes on a 2020–2026 timeline, each tagged with what lenders lost. */
-export function CrashTimeline() {
+export function CrashTimeline({ loss = {} }: { loss?: Record<string, number> }) {
+  const lost = (k: string) => `${usd0(loss[k] ?? 0)} lost`;
+  const tone = (k: string) => ((loss[k] ?? 0) >= 0.5 ? "text-down" : "text-up");
   return (
     <figure>
       {/* Desktop: dated timeline. */}
@@ -220,7 +226,7 @@ export function CrashTimeline() {
             <div key={c.n} className="absolute -translate-x-1/2 text-center" style={{ left: `${x}%`, top: above ? 0 : "56%" }}>
               {!above && <div className="mx-auto mb-1 h-2 w-2 rounded-full bg-brand" />}
               <div className="whitespace-nowrap text-sm text-fg2">{c.n}</div>
-              <div className="num whitespace-nowrap text-sm text-up">$0 lost</div>
+              <div className={`num whitespace-nowrap text-sm ${tone(c.k)}`}>{lost(c.k)}</div>
               {above && <div className="mx-auto mt-1 h-2 w-2 rounded-full bg-brand" />}
             </div>
           );
@@ -235,7 +241,7 @@ export function CrashTimeline() {
             <span className="text-fg2">
               {c.n} <span className="text-muted">{c.d.slice(0, 4)}</span>
             </span>
-            <span className="num text-up">$0 lost</span>
+            <span className={`num ${tone(c.k)}`}>{lost(c.k)}</span>
           </li>
         ))}
       </ul>

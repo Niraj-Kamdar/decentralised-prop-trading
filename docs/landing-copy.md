@@ -34,7 +34,7 @@ The page is built on the story spine: each section is one beat, in order. The be
 
 Rules: one idea per illustration; label with dollars, not percentages; every illustration has a text or table equivalent for screen readers.
 
-`{arkiv.*}` = a value read live from Arkiv through `getBacktest()` (see `docs/superpowers/plans/2026-11-07-backtest-page.md`). The value after the `=` is from the first published run (`5847faa`), for drafting only.
+`{arkiv.*}` = a value read live from Arkiv through `getBacktest()` (see `docs/superpowers/plans/2026-11-07-backtest-page.md`). The value after the `=` is from the first published run (`df74b20`), for drafting only.
 
 ---
 
@@ -49,7 +49,7 @@ Rules: one idea per illustration; label with dollars, not percentages; every ill
 **CTAs:** `Start trading` (primary) · `Earn as a lender` (secondary)
 
 **Proof strip** (three small stats under the CTAs, all from Arkiv; each links to `/backtest`):
-- `{arkiv.headline.apy = 12.46%}` lender APY, backtested
+- `{arkiv.headline.apy = 5.07%}` lender APY, backtested
 - `${arkiv.crash.base.lp_loss_total = 0}` lender losses through `{arkiv.crash.count = 7}` crashes
 - `{arkiv.meta.years = 6.8}` years of minute-by-minute prices
 
@@ -146,13 +146,13 @@ Footnote: *The trader can never lose more than their deposit, and the lenders ar
 **Lead:** Before asking anyone to lend, we ran the protocol minute by minute through 6.8 years of Binance prices and `{arkiv.meta.positions = 6,967}` real Hyperliquid trades. Every result is published on Arkiv and signed by our wallet, so you can check it without trusting this page.
 
 Three stat tiles:
-- **`{arkiv.headline.apy = 12.46%}`** average lender APY
+- **`{arkiv.headline.apy = 5.07%}`** average lender APY
 - **`${arkiv.crash.base.lp_loss_total = 0}`** lender losses in COVID, LUNA, FTX and `{n}` more crashes
 - **`${arkiv.headline.bad_debt = 0}`** bad debt
 
 Then the vault-value line chart (the same `NavChart` as `/backtest`).
 
-**Honest line, under the chart:** In our harshest stress test (thin liquidity, every trader at 10x, keepers offline for 30 minutes, and an empty insurance fund), lenders lost `{arkiv.crash.stress_outage_30m.max_pct = 0.49%}` in the worst crash. We show that too.
+**Honest line, under the chart:** In our harshest stress test (thin liquidity, every trader at 10x, keepers offline for 30 minutes, and an empty insurance fund), lenders lost `{arkiv.crash.stress_outage_30m.max_usd = $0}` in every crash. We show that too.
 
 **CTA:** `See the full backtest →` (/backtest) · `Verify on Arkiv →` (explorer link)
 
@@ -169,7 +169,7 @@ Then the vault-value line chart (the same `NavChart` as `/backtest`).
 **Lenders, H2:** Earn from traders, without trading.
 - Earn 7–15% of every winning trade, plus borrowing fees
 - Traders' deposits and an insurance fund take losses before you
-- `{arkiv.headline.apy = 12.46%}` APY in our 6.8-year backtest
+- `{arkiv.headline.apy = 5.07%}` APY in our 6.8-year backtest
 - Withdraw any time, paid out within 30 days
 
 Lender card small print: *Backtests aren't guarantees. Deposits can lose value.*
@@ -190,10 +190,10 @@ No. Your deposit is the most you can lose. The contract closes your trade before
 From lenders who deposit USDC into the vault. They're paid back first on every close, then take a share of the profit.
 
 **What do lenders earn?**
-7–15% of each winning trade, depending on the trader's level, plus 80% of borrowing fees. Our backtest averaged `{arkiv.headline.apy = 12.46%}` a year.
+7–15% of each winning trade, depending on the trader's level, plus 80% of borrowing fees. Our backtest averaged `{arkiv.headline.apy = 5.07%}` a year.
 
 **Can lenders lose money?**
-Yes, if a crash is fast enough that a trader's deposit and the insurance fund can't cover it. In our base backtest it never happened across 7 crashes; in a harsh stress test the worst loss was `{arkiv.crash.stress_outage_30m.max_pct = 0.49%}`. All results are public on Arkiv.
+Yes, if a crash is fast enough that a trader's deposit and the insurance fund can't cover it. In our base backtest it never happened across 7 crashes; in a harsh stress test lenders lost `{arkiv.crash.stress_outage_30m.max_usd = $0}` in every crash. All results are public on Arkiv.
 
 **How does Fulcrum make money?**
 1.5% of profitable trades at the Trader level (half of a 3% cut; the other half funds insurance). It ranges from 1% to 2.5% by level.
@@ -211,6 +211,6 @@ Nobody. The contract pays you when you close and updates your level automaticall
 
 ## Open questions for the team
 1. **Chain:** the current page says "USDC on Arc", but PR #10 targets Base mainnet. This draft says Base. Confirm.
-2. **Stress figure:** `0.49%` is COVID's $4,933 loss on a $1M vault. That number is **after** insurance: the sim pays shortfalls from insurance first (`cover = min(shortfall, insurance)` in `model.py`), and only the rest is lender loss. But every crash replay starts with **insurance = $0** (`crash_job(..., insurance=0.0, ...)` in `export.py`), so in the replay there's nothing to cover it. That's a deliberate worst case, not what a running vault would see. The 6.8-year headline run builds insurance up to ~$64k, which would cover Oct-10 ($2,623) easily. COVID came 2.5 months after the run starts, so the fund would be small there. **Fix before quoting it:** in the PR #10 re-run, seed each crash replay with the insurance balance the headline run had on that date, and report both numbers (empty fund vs. realistic fund). Also check against the new Chainlink feed-outage stress.
+2. **Stress figure:** *Resolved in run `df74b20`: lender loss is $0 in all 7 crashes in every scenario, so the figure below no longer applies; kept for history.* The old `0.49%` was COVID's $4,933 loss on a $1M vault. That number was **after** insurance: the sim pays shortfalls from insurance first (`cover = min(shortfall, insurance)` in `model.py`), and only the rest is lender loss. But every crash replay starts with **insurance = $0** (`crash_job(..., insurance=0.0, ...)` in `export.py`), so in the replay there's nothing to cover it. That's a deliberate worst case, not what a running vault would see. The 6.8-year headline run builds insurance up to ~$64k, which would cover Oct-10 ($2,623) easily. COVID came 2.5 months after the run starts, so the fund would be small there. **Fix before quoting it:** in the PR #10 re-run, seed each crash replay with the insurance balance the headline run had on that date, and report both numbers (empty fund vs. realistic fund). Also check against the new Chainlink feed-outage stress.
 3. **Position count:** the Arkiv docs say both 6,967 trades and 7,036 positions. Pick one (I think 7,036 is the full dataset and 6,967 is ETH/BTC closed). Then bind it to Arkiv.
 4. **Free first week:** still true after PR #10? (Rollover is 8% APR; check whether the free period survived.)
