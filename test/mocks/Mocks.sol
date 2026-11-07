@@ -10,7 +10,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
-import {AggregatorV3Interface} from "../../src/ChainlinkOracle.sol";
+import {AggregatorV3Interface, AggregatorV2V3Interface} from "../../src/ChainlinkOracle.sol";
 
 /// @notice 6-decimal USDC stand-in with a Circle-style blocklist (reverts on send/receive).
 contract MockUSDC is ERC20 {
@@ -149,11 +149,14 @@ contract MockRouter is IV4SwapRouter {
     }
 }
 
-contract MockAggregator is AggregatorV3Interface {
+contract MockAggregator is AggregatorV2V3Interface {
     uint8 private immutable _decimals;
     string private _description;
     int256 private _answer;
     uint256 private _updatedAt;
+    uint256 private _startedAt;
+    uint80 private _roundId = 1;
+    uint80 private _answeredInRound = 1;
 
     constructor(uint8 decimals_) {
         _decimals = decimals_;
@@ -174,6 +177,21 @@ contract MockAggregator is AggregatorV3Interface {
     function setAnswer(int256 answer, uint256 updatedAt) external {
         _answer = answer;
         _updatedAt = updatedAt;
+        _startedAt = updatedAt;
+    }
+
+    function setRoundData(
+        uint80 roundId,
+        int256 answer,
+        uint256 startedAt,
+        uint256 updatedAt,
+        uint80 answeredInRound
+    ) external {
+        _roundId = roundId;
+        _answer = answer;
+        _startedAt = startedAt;
+        _updatedAt = updatedAt;
+        _answeredInRound = answeredInRound;
     }
 
     function latestRoundData()
@@ -181,6 +199,6 @@ contract MockAggregator is AggregatorV3Interface {
         view
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
-        return (1, _answer, _updatedAt, _updatedAt, 1);
+        return (_roundId, _answer, _startedAt == 0 ? _updatedAt : _startedAt, _updatedAt, _answeredInRound);
     }
 }

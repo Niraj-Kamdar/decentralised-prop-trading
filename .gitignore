@@ -1,9 +1,10 @@
 out/
 cache/
-node_modules/
+node_modules
 broadcast/
 .env
 .fork/
 deployments/fork.json
 sim/data/
 __pycache__/
+foundry.lock
