@@ -343,7 +343,7 @@ def main(out):
         sweep = [[ex.submit(level_sweep_job, (c, k)) for k in ("syn", "hl", "crash")] for c in LEVEL_SWEEP]
 
         emp = hl.empirical(accts)
-        cal_d = replace(BASE_D, emp=emp)
+        cal_d = replace(BASE_D, per_day=emp["per_day"], p_new=emp["p_new"], emp=emp)  # real arrival rate, new-trader share
         cal_crash = {"base": (BASE_P, replace(CRASH_DEMAND, emp=emp)),
                      "stress": (STRESS_P, replace(CRASH_DEMAND, emp=emp | dict(p_10x=1.0)))}
         f_cal_full = [ex.submit(job, (START, END, BASE_P, cal_d, v, 0.0, 0)) for v in CAL_TVLS]
