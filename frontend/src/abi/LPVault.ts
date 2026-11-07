@@ -424,6 +424,19 @@ export const lPVaultAbi = [
   },
   {
     "type": "function",
+    "name": "depositCap",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "depositWithBonus",
     "inputs": [
       {
@@ -763,7 +776,7 @@ export const lPVaultAbi = [
     "name": "maxDeposit",
     "inputs": [
       {
-        "name": "",
+        "name": "receiver",
         "type": "address",
         "internalType": "address"
       }
@@ -782,7 +795,7 @@ export const lPVaultAbi = [
     "name": "maxMint",
     "inputs": [
       {
-        "name": "",
+        "name": "receiver",
         "type": "address",
         "internalType": "address"
       }
@@ -1035,6 +1048,19 @@ export const lPVaultAbi = [
         "internalType": "address"
       }
     ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "perAddressCap",
+    "inputs": [],
     "outputs": [
       {
         "name": "",
@@ -1346,6 +1372,24 @@ export const lPVaultAbi = [
       },
       {
         "name": "minBonusDeposit_",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setDepositCaps",
+    "inputs": [
+      {
+        "name": "total",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "perAddress",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -1904,6 +1948,25 @@ export const lPVaultAbi = [
   },
   {
     "type": "event",
+    "name": "DepositCapsSet",
+    "inputs": [
+      {
+        "name": "total",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "perAddress",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Initialized",
     "inputs": [
       {
@@ -2379,6 +2442,17 @@ export const lPVaultAbi = [
   },
   {
     "type": "error",
+    "name": "Denied",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ERC1967InvalidImplementation",
     "inputs": [
       {
@@ -2783,6 +2857,11 @@ export const lPVaultAbi = [
   {
     "type": "error",
     "name": "ZeroAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAssets",
     "inputs": []
   }
 ] as const;

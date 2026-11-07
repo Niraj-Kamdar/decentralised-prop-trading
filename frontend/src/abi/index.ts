@@ -3,7 +3,7 @@ import { insuranceReserveAbi } from "./InsuranceReserve";
 import { lPVaultAbi } from "./LPVault";
 import { positionManagerAbi } from "./PositionManager";
 import { traderProxyAbi } from "./TraderProxy";
-import { uniV4TwapOracleAbi } from "./UniV4TwapOracle";
+import { chainlinkOracleAbi } from "./ChainlinkOracle";
 import { v4SwapRouterAbi } from "./V4SwapRouter";
 
 const errorsOf = <T extends readonly { type: string }[]>(abi: T) =>
@@ -14,7 +14,7 @@ const errorsOf = <T extends readonly { type: string }[]>(abi: T) =>
  * fragments lets viem decode those nested reverts into readable names.
  */
 const nestedErrors = [
-  ...errorsOf(uniV4TwapOracleAbi),
+  ...errorsOf(chainlinkOracleAbi),
   ...errorsOf(lPVaultAbi),
   ...errorsOf(traderProxyAbi),
   ...errorsOf(v4SwapRouterAbi),
@@ -30,6 +30,6 @@ export const pmAbi = [
   ),
 ] as const;
 export const vaultAbi = lPVaultAbi;
-export const oracleAbi = uniV4TwapOracleAbi;
+export const oracleAbi = chainlinkOracleAbi;
 export const insuranceAbi = insuranceReserveAbi;
 export { erc20Abi };

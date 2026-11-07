@@ -2,33 +2,7 @@
 export const positionManagerAbi = [
   {
     "type": "constructor",
-    "inputs": [
-      {
-        "name": "usdc_",
-        "type": "address",
-        "internalType": "contract IERC20"
-      },
-      {
-        "name": "lpVault_",
-        "type": "address",
-        "internalType": "contract ILPVault"
-      },
-      {
-        "name": "insurance_",
-        "type": "address",
-        "internalType": "contract IInsuranceReserve"
-      },
-      {
-        "name": "oracle_",
-        "type": "address",
-        "internalType": "contract IOracle"
-      },
-      {
-        "name": "owner_",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -79,6 +53,19 @@ export const positionManagerAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "UPGRADE_INTERFACE_VERSION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "stateMutability": "view"
@@ -390,6 +377,39 @@ export const positionManagerAbi = [
   },
   {
     "type": "function",
+    "name": "initialize",
+    "inputs": [
+      {
+        "name": "usdc_",
+        "type": "address",
+        "internalType": "contract IERC20"
+      },
+      {
+        "name": "lpVault_",
+        "type": "address",
+        "internalType": "contract ILPVault"
+      },
+      {
+        "name": "insurance_",
+        "type": "address",
+        "internalType": "contract IInsuranceReserve"
+      },
+      {
+        "name": "oracle_",
+        "type": "address",
+        "internalType": "contract IOracle"
+      },
+      {
+        "name": "owner_",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "insurance",
     "inputs": [],
     "outputs": [
@@ -397,6 +417,25 @@ export const positionManagerAbi = [
         "name": "",
         "type": "address",
         "internalType": "contract IInsuranceReserve"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isDenied",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -472,6 +511,60 @@ export const positionManagerAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "levels",
+    "inputs": [
+      {
+        "name": "level",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "enabled",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "maxLeverage",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "maxMargin",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "lpProfitBps",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "treasuryProfitBps",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "promoteMinTrades",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "promoteMinPnl",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "demoteMaxLoss",
+        "type": "uint128",
+        "internalType": "uint128"
       }
     ],
     "stateMutability": "view"
@@ -780,6 +873,19 @@ export const positionManagerAbi = [
   },
   {
     "type": "function",
+    "name": "proxiableUUID",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "proxyImplementation",
     "inputs": [],
     "outputs": [
@@ -859,12 +965,90 @@ export const positionManagerAbi = [
   },
   {
     "type": "function",
+    "name": "setDenied",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "denied",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setGuardian",
     "inputs": [
       {
         "name": "guardian_",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setLevel",
+    "inputs": [
+      {
+        "name": "level",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "cfg",
+        "type": "tuple",
+        "internalType": "struct PositionManager.LevelConfig",
+        "components": [
+          {
+            "name": "enabled",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "maxLeverage",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "maxMargin",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "lpProfitBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "treasuryProfitBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "promoteMinTrades",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "promoteMinPnl",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "demoteMaxLoss",
+            "type": "uint128",
+            "internalType": "uint128"
+          }
+        ]
       }
     ],
     "outputs": [],
@@ -883,6 +1067,19 @@ export const positionManagerAbi = [
         "name": "allowed",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setOracle",
+    "inputs": [
+      {
+        "name": "oracle_",
+        "type": "address",
+        "internalType": "contract IOracle"
       }
     ],
     "outputs": [],
@@ -911,6 +1108,19 @@ export const positionManagerAbi = [
         "name": "trailingStop",
         "type": "uint128",
         "internalType": "uint128"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setProxyImplementation",
+    "inputs": [
+      {
+        "name": "impl",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -995,18 +1205,26 @@ export const positionManagerAbi = [
             "name": "maintenanceBps",
             "type": "uint16",
             "internalType": "uint16"
-          },
-          {
-            "name": "lpProfitBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "treasuryProfitBps",
-            "type": "uint16",
-            "internalType": "uint16"
           }
         ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTraderLevel",
+    "inputs": [
+      {
+        "name": "trader",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "level",
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ],
     "outputs": [],
@@ -1071,16 +1289,6 @@ export const positionManagerAbi = [
         "name": "maintenanceBps",
         "type": "uint16",
         "internalType": "uint16"
-      },
-      {
-        "name": "lpProfitBps",
-        "type": "uint16",
-        "internalType": "uint16"
-      },
-      {
-        "name": "treasuryProfitBps",
-        "type": "uint16",
-        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -1094,6 +1302,35 @@ export const positionManagerAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "traderStats",
+    "inputs": [
+      {
+        "name": "trader",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "level",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "trades",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "pnl",
+        "type": "int128",
+        "internalType": "int128"
       }
     ],
     "stateMutability": "view"
@@ -1117,6 +1354,24 @@ export const positionManagerAbi = [
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "upgradeToAndCall",
+    "inputs": [
+      {
+        "name": "newImplementation",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "data",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -1213,6 +1468,25 @@ export const positionManagerAbi = [
   },
   {
     "type": "event",
+    "name": "DeniedSet",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "denied",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "EpochRolled",
     "inputs": [
       {
@@ -1251,6 +1525,105 @@ export const positionManagerAbi = [
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Initialized",
+    "inputs": [
+      {
+        "name": "version",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "LevelChanged",
+    "inputs": [
+      {
+        "name": "trader",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "fromLevel",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "toLevel",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "LevelSet",
+    "inputs": [
+      {
+        "name": "level",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "config",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct PositionManager.LevelConfig",
+        "components": [
+          {
+            "name": "enabled",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "maxLeverage",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "maxMargin",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "lpProfitBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "treasuryProfitBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "promoteMinTrades",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "promoteMinPnl",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "demoteMaxLoss",
+            "type": "uint128",
+            "internalType": "uint128"
+          }
+        ]
       }
     ],
     "anonymous": false
@@ -1301,6 +1674,19 @@ export const positionManagerAbi = [
         "type": "bool",
         "indexed": false,
         "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OracleSet",
+    "inputs": [
+      {
+        "name": "oracle",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -1562,6 +1948,19 @@ export const positionManagerAbi = [
   },
   {
     "type": "event",
+    "name": "ProxyImplementationSet",
+    "inputs": [
+      {
+        "name": "impl",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "RiskParamsSet",
     "inputs": [
       {
@@ -1647,16 +2046,6 @@ export const positionManagerAbi = [
             "name": "maintenanceBps",
             "type": "uint16",
             "internalType": "uint16"
-          },
-          {
-            "name": "lpProfitBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
-            "name": "treasuryProfitBps",
-            "type": "uint16",
-            "internalType": "uint16"
           }
         ]
       }
@@ -1675,6 +2064,30 @@ export const positionManagerAbi = [
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Upgraded",
+    "inputs": [
+      {
+        "name": "implementation",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AddressEmptyCode",
+    "inputs": [
+      {
+        "name": "target",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",
@@ -1697,6 +2110,33 @@ export const positionManagerAbi = [
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "Denied",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ERC1967InvalidImplementation",
+    "inputs": [
+      {
+        "name": "implementation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ERC1967NonPayable",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1758,6 +2198,11 @@ export const positionManagerAbi = [
   },
   {
     "type": "error",
+    "name": "FailedCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "FailedDeployment",
     "inputs": []
   },
@@ -1789,6 +2234,11 @@ export const positionManagerAbi = [
   },
   {
     "type": "error",
+    "name": "InvalidInitialization",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidParams",
     "inputs": []
   },
@@ -1805,7 +2255,23 @@ export const positionManagerAbi = [
   },
   {
     "type": "error",
+    "name": "LevelLimitExceeded",
+    "inputs": [
+      {
+        "name": "level",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "NotAuthorized",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotInitializing",
     "inputs": []
   },
   {
@@ -1864,24 +2330,13 @@ export const positionManagerAbi = [
   },
   {
     "type": "error",
-    "name": "ReentrancyGuardReentrantCall",
+    "name": "ProxyImplementationNotSet",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "SafeCastOverflowedUintDowncast",
-    "inputs": [
-      {
-        "name": "bits",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "value",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1907,6 +2362,22 @@ export const positionManagerAbi = [
         "name": "price",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UUPSUnauthorizedCallContext",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "UUPSUnsupportedProxiableUUID",
+    "inputs": [
+      {
+        "name": "slot",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ]
   },
