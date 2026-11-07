@@ -279,7 +279,16 @@ class Sim:
                     self._arrive(t)
                 for item in self.book.get(t, ()):
                     if len(item) == 5:
-                        a, tier, M, hold, tr = item
+                        a, req_tier, req_M, hold, tr = item
+                        if tr is not None:
+                            tr_obj = self.get_trader(tr)
+                            cfg = self.p.levels.get(tr_obj.level, DEFAULT_LEVELS[0])
+                            tier = min(req_tier, cfg.max_leverage)
+                            M = min(req_M, cfg.max_margin)
+                            if M * tier < self.p.min_notional:
+                                continue
+                        else:
+                            tier, M = req_tier, req_M
                     else:
                         a, tier, M, hold = item
                         tr = None
