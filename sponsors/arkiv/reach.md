@@ -11,7 +11,7 @@ The numbers are the product's pitch. Hackathon feedback was that people didn't u
 ## Can they try it today?
 - **Query the results now:** run the [query in the README](README.md#one-query-you-can-run) against Rabdi (owner `0x8F24d5FF02c5FFaCDAa1741dC7a20d37f363f69d`).
 - **Reproduce the numbers:** `docker run --rm -v "$PWD:/out" ghcr.io/niraj-kamdar/fulcrum-sim` writes the same `results.json` offline.
-- **Explore:** the backtest notebook in [`sim/fulcrum_backtest.ipynb`](../../sim/fulcrum_backtest.ipynb). The Streamlit explorer and landing-page integration that read from Arkiv are in progress. Links go here when deployed: `TODO(team): Streamlit URL`, `TODO(team): landing URL`.
+- **Explore:** the backtest notebook in [`sim/fulcrum_backtest.ipynb`](../../sim/fulcrum_backtest.ipynb). The `/backtest` page reads live from Arkiv. Links: `/backtest`, `TODO(team): landing URL`.
 
 ## Will we keep building after Mumbai?
 `TODO(team): confirm plans.` Next on the roadmap:

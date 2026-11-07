@@ -55,5 +55,7 @@ Output on the first publish: `base: []`, and `stress + 30-min outage:` COVID $4,
 
 ## Code
 - Writer: [`frontend/scripts/publish-arkiv.ts`](../../frontend/scripts/publish-arkiv.ts) (`@arkiv-network/sdk` 1.0.1)
+- Reader: [`frontend/src/lib/arkiv/read.ts`](../../frontend/src/lib/arkiv/read.ts) (used by the `/backtest` page)
+- Shared schemas: [`frontend/src/lib/arkiv/schema.ts`](../../frontend/src/lib/arkiv/schema.ts)
 - Data producer: [`sim/export.py`](../../sim/export.py), reproducible offline via `ghcr.io/niraj-kamdar/fulcrum-sim`
 - Simulator: [`sim/`](../../sim/), notebook [`sim/fulcrum_backtest.ipynb`](../../sim/fulcrum_backtest.ipynb)
