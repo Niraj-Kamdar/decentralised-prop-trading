@@ -235,11 +235,12 @@ contract PositionManagerTest is BaseTest {
         vm.prank(keeper);
         pm.liquidate(posId, s);
 
-        // 850 - 5 bounty = 845 < 900 -> shortfall 55; insurance covers 20; LPs eat 35.
-        assertEq(usdc.balanceOf(keeper), 5e6);
+        // 850 < 900 -> actual loss 50; bounty cannot inflate shortfall beyond actual position loss.
+        // shortfall 50; insurance covers 20; LPs eat 30 (not 35).
+        assertEq(usdc.balanceOf(keeper), 0);
         assertEq(insurance.insurancePoolBalance(), 0);
         assertEq(vault.totalBorrowedPrincipal(), 0);
-        assertEq(vault.totalAssets(), LP_DEPOSIT - 35e6);
+        assertEq(vault.totalAssets(), LP_DEPOSIT - 30e6);
     }
 
     // ------------------------------------------------------------------ epochs

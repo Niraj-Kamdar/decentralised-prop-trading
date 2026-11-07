@@ -697,9 +697,12 @@ contract PositionManager is
 
     /// @dev Debt and epoch count due for an auto-rolling position whose epoch(s) have elapsed.
     function _pendingEpochs(Position memory pos) internal view returns (uint256 debt, uint256 epochs) {
-        if (!pos.autoRollover || block.timestamp < pos.epochEndTime) return (0, 0);
-        epochs = (block.timestamp - pos.epochEndTime) / EPOCH_DURATION + 1;
-        if (epochs > MAX_EPOCH_CATCH_UP) epochs = MAX_EPOCH_CATCH_UP;
+        if (block.timestamp < pos.epochEndTime) return (0, 0);
+        if (pos.autoRollover) {
+            epochs = (block.timestamp - pos.epochEndTime) / EPOCH_DURATION + 1;
+        } else {
+            epochs = Math.ceilDiv(block.timestamp - pos.epochEndTime, EPOCH_DURATION);
+        }
         debt = epochRolloverFee(pos.borrowedPrincipal) * epochs;
     }
 
@@ -736,26 +739,40 @@ contract PositionManager is
         bool forced
     ) internal {
         uint256 floorOut = (mark * (BPS - slippageBps)) / BPS;
-        uint256 minOut = minAmountOut > floorOut ? minAmountOut : floorOut;
-
         bool isLiquidation = reason == CloseReason.LIQUIDATION;
+        uint256 minOut;
+        if (isLiquidation) {
+            minOut = minAmountOut > 0 ? minAmountOut : floorOut;
+        } else {
+            minOut = minAmountOut > floorOut ? minAmountOut : floorOut;
+        }
+
         pos.status = isLiquidation ? PositionStatus.LIQUIDATED : PositionStatus.CLOSED;
         assetExposure[pos.spotToken] -= pos.notional;
         borrowedByAssetTier[pos.spotToken][pos.tier] -= pos.borrowedPrincipal;
         --openPositionCount;
 
         address proxy = pos.proxy;
-        uint256 usdcOut = _swap(proxy, pos.spotToken, address(usdc), pos.spotAmount, minOut);
-        ITraderProxy(proxy).sweep(address(usdc), address(this), usdcOut);
+        _swap(proxy, pos.spotToken, address(usdc), pos.spotAmount, minOut);
 
-        (uint256 traderPayout, uint256 penalty) = _settle(posId, pos, usdcOut, forced, isLiquidation);
+        uint256 usdcBal = usdc.balanceOf(proxy);
+        if (usdcBal > 0) {
+            ITraderProxy(proxy).sweep(address(usdc), address(this), usdcBal);
+        }
+
+        uint256 spotBal = IERC20(pos.spotToken).balanceOf(proxy);
+        if (spotBal > 0) {
+            ITraderProxy(proxy).sweep(pos.spotToken, pos.trader, spotBal);
+        }
+
+        (uint256 traderPayout, uint256 penalty) = _settle(posId, pos, usdcBal, forced, isLiquidation);
 
         _recordResult(pos.trader, int256(traderPayout) - int256(uint256(pos.userMargin)));
 
         if (isLiquidation) {
-            emit PositionLiquidated(posId, msg.sender, usdcOut, mark, penalty);
+            emit PositionLiquidated(posId, msg.sender, usdcBal, mark, penalty);
         } else {
-            emit PositionClosed(posId, reason, usdcOut, traderPayout, msg.sender);
+            emit PositionClosed(posId, reason, usdcBal, traderPayout, msg.sender);
         }
     }
 
@@ -769,7 +786,8 @@ contract PositionManager is
 
         // Step 1: keeper bounty.
         if (forced) {
-            uint256 k = Math.min(keeperBounty, u);
+            uint256 availableForBounty = usdcOut > borrowed ? usdcOut - borrowed : 0;
+            uint256 k = Math.min(keeperBounty, availableForBounty);
             if (k > 0) {
                 u -= k;
                 usdc.safeTransfer(msg.sender, k);
@@ -794,7 +812,7 @@ contract PositionManager is
         uint256 treasuryCut;
 
         // Step 4: liquidation penalty vs. trader payout & profit split.
-        if (isLiquidation) {
+        if (isLiquidation && borrowed > 0) {
             penalty = u;
             toInsurance += u;
         } else {
@@ -857,4 +875,10 @@ contract PositionManager is
         totalClaimable += amount;
         emit PayoutDeferred(trader, amount);
     }
+
+    // ---------------------------------------------------------------------
+    // Upgrade Gap
+    // ---------------------------------------------------------------------
+
+    uint256[50] private __gap;
 }
