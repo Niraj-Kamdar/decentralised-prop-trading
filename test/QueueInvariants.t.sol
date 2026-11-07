@@ -15,7 +15,7 @@ contract QueueHandler is Test {
     MockMetaMorpho internal morpho;
     MockOracle internal oracle;
     MockRouter internal router;
-    address internal cirBTC;
+    address internal cbBTC;
 
     address[] internal lps;
     address internal trader = makeAddr("inv-trader");
@@ -34,7 +34,7 @@ contract QueueHandler is Test {
         MockMetaMorpho morpho_,
         MockOracle oracle_,
         MockRouter router_,
-        address cirBTC_
+        address cbBTC_
     ) {
         vault = vault_;
         pm = pm_;
@@ -42,7 +42,7 @@ contract QueueHandler is Test {
         morpho = morpho_;
         oracle = oracle_;
         router = router_;
-        cirBTC = cirBTC_;
+        cbBTC = cbBTC_;
         for (uint256 i; i < 3; ++i) {
             address a = makeAddr(string(abi.encodePacked("inv-lp", i)));
             lps.push(a);
@@ -60,8 +60,8 @@ contract QueueHandler is Test {
     }
 
     function _refreshPrice() internal {
-        oracle.setPrice(cirBTC, 50_000e18);
-        router.setPrice(cirBTC, 50_000e18);
+        oracle.setPrice(cbBTC, 50_000e18);
+        router.setPrice(cbBTC, 50_000e18);
     }
 
     function _price() internal view returns (uint256) {
@@ -117,10 +117,10 @@ contract QueueHandler is Test {
         if (vault.totalBorrowedPrincipal() + borrowed > vault.totalAssets() * 8_500 / 10_000) return;
         uint256 free = vault.freeLiquidity();
         if (free < vault.pendingRedeemAssets() + borrowed) return;
-        if (pm.assetExposure(cirBTC) + notional > vault.totalAssets()) return;
+        if (pm.assetExposure(cbBTC) + notional > vault.totalAssets()) return;
 
         PositionManager.OpenParams memory p = PositionManager.OpenParams({
-            spotToken: cirBTC, tier: 10, margin: uint128(margin), autoRollover: true, minAmountOut: 0
+            spotToken: cbBTC, tier: 10, margin: uint128(margin), autoRollover: true, minAmountOut: 0
         });
         vm.prank(trader);
         openPositions.push(pm.openPosition(p));
@@ -183,10 +183,10 @@ contract QueueInvariantsTest is BaseTest {
     function setUp() public override {
         super.setUp();
         vm.startPrank(owner);
-        pm.setAsset(address(cirBTC), true, 10_000, 2_000);
+        pm.setAsset(address(cbBTC), true, 10_000, 2_000);
         vault.setQueueParams(7 days, 8_000, 2_500, 10_000); // shorter queue so runs reach fulfilment
         vm.stopPrank();
-        handler = new QueueHandler(vault, pm, usdc, morpho, oracle, router, address(cirBTC));
+        handler = new QueueHandler(vault, pm, usdc, morpho, oracle, router, address(cbBTC));
         targetContract(address(handler));
     }
 
@@ -206,7 +206,7 @@ contract QueueInvariantsTest is BaseTest {
     }
 
     function invariant_aggregatesMatchVault() public view {
-        assertEq(pm.borrowedByAssetTier(address(cirBTC), 10), vault.totalBorrowedPrincipal());
+        assertEq(pm.borrowedByAssetTier(address(cbBTC), 10), vault.totalBorrowedPrincipal());
     }
 
     function invariant_stayersNeverDiluted() public view {

@@ -155,7 +155,7 @@ abstract contract Handlers is Properties {
     // ―――――――――――――――――――――――― Trader Handlers ―――――――――――――――――――――――――
 
     function openPosition_clamped(uint8 assetChoice, uint128 margin, uint8 tierChoice, bool autoRollover) public {
-        address spot = (assetChoice % 2 == 0) ? address(weth) : address(cirBTC);
+        address spot = (assetChoice % 2 == 0) ? address(weth) : address(cbBTC);
         uint8 tier = (tierChoice % 2 == 0) ? 5 : 10;
         margin = uint128(clamp(uint256(margin), 100e6, 5_000e6));
         uint256 borrowed = uint256(margin) * (tier - 1);
@@ -263,14 +263,14 @@ abstract contract Handlers is Properties {
 
     // ―――――――――――――――――――――――― Keeper Handlers ――――――――――――――――――――――――
 
-    function recordOracleObservation_clamped(int24 tickDelta, uint256 cirBtcPrice, uint256 wethPrice) public {
-        cirBtcPrice = clamp(cirBtcPrice, 20_000, 80_000);
+    function recordOracleObservation_clamped(int24 tickDelta, uint256 cbBtcPrice, uint256 wethPrice) public {
+        cbBtcPrice = clamp(cbBtcPrice, 20_000, 80_000);
         wethPrice = clamp(wethPrice, 1_200, 4_500);
-        _setPrices(cirBtcPrice, wethPrice);
+        _setPrices(cbBtcPrice, wethPrice);
 
         address[] memory assetList = new address[](2);
         assetList[0] = address(weth);
-        assetList[1] = address(cirBTC);
+        assetList[1] = address(cbBTC);
         int24[] memory expectedTicks = new int24[](2);
         expectedTicks[0] = tickDelta;
         expectedTicks[1] = tickDelta;

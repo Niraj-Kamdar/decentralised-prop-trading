@@ -83,7 +83,7 @@ abstract contract Base is StringUtils, Clamp, Deployer, Math {
     // ―――――――――――――――――――――――― Contracts ―――――――――――――――――――――――――
 
     MockUSDC public usdc;
-    MockToken public cirBTC;
+    MockToken public cbBTC;
     MockToken public weth;
     MockMetaMorpho public morpho;
     MockOracle public mockOracle;
@@ -97,7 +97,7 @@ abstract contract Base is StringUtils, Clamp, Deployer, Math {
     V4SwapRouter public v4Router;
 
     PoolKey public keyWeth;
-    PoolKey public keyCirBtc;
+    PoolKey public keyCbBtc;
 
     // Tracking arrays for invariants
     uint256[] internal openPositions;
@@ -115,7 +115,7 @@ abstract contract Base is StringUtils, Clamp, Deployer, Math {
 
         // Deploy mocks
         usdc = new MockUSDC();
-        cirBTC = new MockToken("Circle BTC", "cirBTC", 8);
+        cbBTC = new MockToken("Coinbase Wrapped BTC", "cbBTC", 8);
         weth = new MockToken("Wrapped Ether", "WETH", 18);
         morpho = new MockMetaMorpho(IERC20(address(usdc)));
         mockOracle = new MockOracle(address(usdc));
@@ -134,10 +134,10 @@ abstract contract Base is StringUtils, Clamp, Deployer, Math {
             hooks: IHooks(address(0))
         });
 
-        (address c0Btc, address c1Btc) = address(cirBTC) < address(usdc)
-            ? (address(cirBTC), address(usdc))
-            : (address(usdc), address(cirBTC));
-        keyCirBtc = PoolKey({
+        (address c0Btc, address c1Btc) = address(cbBTC) < address(usdc)
+            ? (address(cbBTC), address(usdc))
+            : (address(usdc), address(cbBTC));
+        keyCbBtc = PoolKey({
             currency0: Currency.wrap(c0Btc),
             currency1: Currency.wrap(c1Btc),
             fee: 3000,
@@ -147,12 +147,12 @@ abstract contract Base is StringUtils, Clamp, Deployer, Math {
 
         // Set initial mock pool manager slot0
         mockPoolManager.setSlot0(keyWeth.toId(), uint160(1 << 96), 0);
-        mockPoolManager.setSlot0(keyCirBtc.toId(), uint160(1 << 96), 0);
+        mockPoolManager.setSlot0(keyCbBtc.toId(), uint160(1 << 96), 0);
 
         // Deploy protocol contracts
         uniOracle = new UniV4TwapOracle(IPoolManager(address(mockPoolManager)), address(usdc), admin);
         uniOracle.setFeed(address(weth), keyWeth);
-        uniOracle.setFeed(address(cirBTC), keyCirBtc);
+        uniOracle.setFeed(address(cbBTC), keyCbBtc);
         uniOracle.setRecorder(keeper, true);
 
         v4Router = new V4SwapRouter(IPoolManager(address(mockPoolManager)));
@@ -194,7 +194,7 @@ abstract contract Base is StringUtils, Clamp, Deployer, Math {
         TraderProxy proxyImpl = new TraderProxy(address(pm));
         pm.setProxyImplementation(address(proxyImpl));
         pm.setSwapRouter(address(mockRouter));
-        pm.setAsset(address(cirBTC), true, 3_500, 2_000);
+        pm.setAsset(address(cbBTC), true, 3_500, 2_000);
         pm.setAsset(address(weth), true, 3_500, 2_000);
         vault.setQueueParams(7 days, 8_000, 2_500, 10_000);
 
@@ -214,15 +214,15 @@ abstract contract Base is StringUtils, Clamp, Deployer, Math {
 
         // Seed router inventory
         usdc.mint(address(mockRouter), 20_000_000e6);
-        cirBTC.mint(address(mockRouter), 10_000e8);
+        cbBTC.mint(address(mockRouter), 10_000e8);
         weth.mint(address(mockRouter), 100_000e18);
 
         // Seed mock pool manager inventory
         usdc.mint(address(mockPoolManager), 10_000_000e6);
-        cirBTC.mint(address(mockPoolManager), 1_000e8);
+        cbBTC.mint(address(mockPoolManager), 1_000e8);
         weth.mint(address(mockPoolManager), 10_000e18);
 
-        // Initial prices ($50,000 for cirBTC, $2,500 for weth)
+        // Initial prices ($50,000 for cbBTC, $2,500 for weth)
         _setPrices(50_000, 2_500);
 
         // Seed initial vault liquidity from admin
@@ -257,8 +257,8 @@ abstract contract Base is StringUtils, Clamp, Deployer, Math {
     // ――――――――――――――――――――――――― Helpers ――――――――――――――――――――――――――
 
     function _setPrices(uint256 btcUsd, uint256 ethUsd) internal {
-        mockOracle.setPrice(address(cirBTC), btcUsd * 1e18);
-        mockRouter.setPrice(address(cirBTC), btcUsd * 1e18);
+        mockOracle.setPrice(address(cbBTC), btcUsd * 1e18);
+        mockRouter.setPrice(address(cbBTC), btcUsd * 1e18);
 
         mockOracle.setPrice(address(weth), ethUsd * 1e18);
         mockRouter.setPrice(address(weth), ethUsd * 1e18);

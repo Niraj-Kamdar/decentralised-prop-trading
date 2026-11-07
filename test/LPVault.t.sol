@@ -36,7 +36,7 @@ contract LPVaultTest is BaseTest {
 
     function test_fulfilment_cappedByFreeLiquidity() public {
         vm.prank(owner);
-        pm.setAsset(address(cirBTC), true, 10_000, 0); // zero shock isolates the liquidity cap
+        pm.setAsset(address(cbBTC), true, 10_000, 0); // zero shock isolates the liquidity cap
         _open(9_000e6, 10, true); // 81k lent out, 19k free
 
         uint256 shares = vault.balanceOf(lp);
@@ -60,7 +60,7 @@ contract LPVaultTest is BaseTest {
     /// LP-03: depositing right before a profitable close and withdrawing right after captures nothing.
     function test_profitVesting_defeatsSandwich() public {
         uint256 posId = _open(1_000e6, 10, true); // N = 10k
-        _setPrice(address(cirBTC), 60_000); // V = 12k: U3 = 12k - 9k = 3k, profit = 2k, LP cut 12% = 240
+        _setPrice(address(cbBTC), 60_000); // V = 12k: U3 = 12k - 9k = 3k, profit = 2k, LP cut 12% = 240
 
         address attacker = makeAddr("attacker");
         usdc.mint(attacker, 100_000e6);

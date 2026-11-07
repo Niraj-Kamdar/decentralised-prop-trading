@@ -21,7 +21,7 @@ contract PositionManagerFixesTest is BaseTest {
 
         // Advance 21 days (7 days epoch duration + 14 days overdue = 2 overdue epochs)
         skip(21 days);
-        _setPrice(address(cirBTC), 50_000);
+        _setPrice(address(cbBTC), 50_000);
 
         // liquidationThreshold must reflect the 2 overdue epochs of rollover debt
         uint256 expectedDebt = feePerEpoch * 2;
@@ -53,7 +53,7 @@ contract PositionManagerFixesTest is BaseTest {
 
         // Advance 60 epochs (60 * 7 days)
         skip(60 * 7 days);
-        _setPrice(address(cirBTC), 60_000); // position in profit to settle all debt
+        _setPrice(address(cbBTC), 60_000); // position in profit to settle all debt
 
         // Prior to fix, epochs was capped at MAX_EPOCH_CATCH_UP (52)
         // With fix, all 60 epochs must be accrued and charged
@@ -88,7 +88,7 @@ contract PositionManagerFixesTest is BaseTest {
 
         // Drop price so position hits liquidation threshold (threshold = 0 + 500 * 4% = 20 USDC)
         // Mark drops to 20 USDC
-        _setPrice(address(cirBTC), 2_000); // 500 * (2,000 / 50,000) = 20 USDC
+        _setPrice(address(cbBTC), 2_000); // 500 * (2,000 / 50,000) = 20 USDC
         assertTrue(pm.isLiquidatable(posId));
 
         uint256 s = _exitSwap(posId, 200); // ~19.6 USDC out
@@ -113,7 +113,7 @@ contract PositionManagerFixesTest is BaseTest {
         uint256 posId = _open(100e6, 10, true);
 
         // Gap down so position has actual loss vs borrowed principal (borrowed = 900 USDC, mark = 850 USDC)
-        _setPrice(address(cirBTC), 42_500); // V = 850 USDC
+        _setPrice(address(cbBTC), 42_500); // V = 850 USDC
         uint256 s = _exitSwap(posId, 200);
 
         uint256 keeperBefore = usdc.balanceOf(keeper);
@@ -133,7 +133,7 @@ contract PositionManagerFixesTest is BaseTest {
         uint256 posId = _open(100e6, 10, true);
 
         // Set price so proceeds are 903 USDC (borrowed = 900 USDC, excess = 3 USDC, keeperBounty = 5 USDC)
-        _setPrice(address(cirBTC), 45_150); // V = 903 USDC
+        _setPrice(address(cbBTC), 45_150); // V = 903 USDC
         uint256 s = _exitSwap(posId, 0); // 903 USDC
 
         uint256 keeperBefore = usdc.balanceOf(keeper);
@@ -159,22 +159,22 @@ contract PositionManagerFixesTest is BaseTest {
         // Send 10 USDC dust to proxy
         usdc.mint(proxy, 10e6);
 
-        // Send 0.05 cirBTC airdrop to proxy
-        cirBTC.mint(proxy, 5_000_000); // 0.05 cirBTC (8 decimals)
+        // Send 0.05 cbBTC airdrop to proxy
+        cbBTC.mint(proxy, 5_000_000); // 0.05 cbBTC (8 decimals)
 
-        uint256 traderCirBtcBefore = cirBTC.balanceOf(trader);
+        uint256 traderCbBtcBefore = cbBTC.balanceOf(trader);
         uint256 traderUsdcBefore = usdc.balanceOf(trader);
 
         uint256 s = _exitSwap(posId, 100);
         vm.prank(trader);
         pm.closePosition(posId, s);
 
-        // Both USDC and cirBTC balances of proxy must be completely swept (0 balance)
+        // Both USDC and cbBTC balances of proxy must be completely swept (0 balance)
         assertEq(usdc.balanceOf(proxy), 0);
-        assertEq(cirBTC.balanceOf(proxy), 0);
+        assertEq(cbBTC.balanceOf(proxy), 0);
 
-        // Trader must receive the 0.05 cirBTC airdrop
-        assertEq(cirBTC.balanceOf(trader) - traderCirBtcBefore, 5_000_000);
+        // Trader must receive the 0.05 cbBTC airdrop
+        assertEq(cbBTC.balanceOf(trader) - traderCbBtcBefore, 5_000_000);
 
         // Trader receives normal close proceeds + 10 USDC dust swept from proxy
         // 500 entry - 400 borrowed = 100 margin. With +10 USDC dust swept, trader gets 110 USDC (less profit cut if in profit)
@@ -189,14 +189,14 @@ contract PositionManagerFixesTest is BaseTest {
         uint256 posId = _open(100e6, 10, true);
 
         // Price drops to 46_000 (mark = 920 USDC == liquidationThreshold)
-        _setPrice(address(cirBTC), 46_000);
+        _setPrice(address(cbBTC), 46_000);
         assertTrue(pm.isLiquidatable(posId));
 
         // Router executes swap with 5% slippage (output = 920 * 95% = 874 USDC)
         // With rigid maxLiqSlippageBps (200 bps = 2%), floorOut is 920 * 98% = 901.6 USDC
         // In the old code, if minOut was bounded by floorOut, passing minAmountOut = 874 USDC would still revert with InsufficientOutput!
-        router.setPrice(address(cirBTC), 43_700 * 1e18); // 95% of 46,000
-        uint256 expectedOut = oracle.valueInUsdc(address(cirBTC), pm.getPosition(posId).spotAmount) * 95 / 100;
+        router.setPrice(address(cbBTC), 43_700 * 1e18); // 95% of 46,000
+        uint256 expectedOut = oracle.valueInUsdc(address(cbBTC), pm.getPosition(posId).spotAmount) * 95 / 100;
 
         // Keeper specifies flexible minAmountOut = 874 USDC
         vm.prank(keeper);
@@ -208,12 +208,12 @@ contract PositionManagerFixesTest is BaseTest {
     function test_flexibleLiquidationSlippage_defaultFloorWhenZeroPassed() public {
         uint256 posId = _open(100e6, 10, true);
 
-        _setPrice(address(cirBTC), 46_000);
+        _setPrice(address(cbBTC), 46_000);
         assertTrue(pm.isLiquidatable(posId));
 
         // When 0 is passed, it uses floorOut = mark * (1 - 2%)
         // If router price drops 5%, swap should revert with InsufficientOutput
-        router.setPrice(address(cirBTC), 43_700 * 1e18); // 95%
+        router.setPrice(address(cbBTC), 43_700 * 1e18); // 95%
 
         vm.prank(keeper);
         vm.expectRevert();

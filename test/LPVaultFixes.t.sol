@@ -52,7 +52,7 @@ contract LPVaultFixesTest is BaseTest {
 
     function _stressVault() internal {
         vm.prank(owner);
-        pm.setAsset(address(cirBTC), true, 10_000, 0);
+        pm.setAsset(address(cbBTC), true, 10_000, 0);
         // Open position with 9,000e6 at 10x -> 81k borrowed out of 100k -> 81% utilization (stressed >= 80%)
         _open(9_000e6, 10, true);
         assertTrue(vault.isStressed(), "vault should be stressed");
