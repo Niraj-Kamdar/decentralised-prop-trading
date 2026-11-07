@@ -8,7 +8,7 @@ sim (Python, Docker image with frozen data) ──► results.json + positions.j
 Arkiv Rabdi: fulcrum.results / fulcrum.crash / fulcrum.year / fulcrum.dataset
         │  owned by 0x8F24d5FF02c5FFaCDAa1741dC7a20d37f363f69d, expire after 180 days
         ▼  reads: newest run, filtered by owner
-landing page · Streamlit backtest explorer · remote simulator agents
+landing page · /backtest page · remote simulator agents
 ```
 
 ## Do the filters, ownership and expiry fit the app?
@@ -23,9 +23,10 @@ landing page · Streamlit backtest explorer · remote simulator agents
 
 ## Does each feature change something users see?
 - **Crash-safety badge on the landing page** ("$0 LP loss through 7 crashes"): it comes from `fulcrum.crash` rows, and links to the query that proves it. *(In progress.)*
-- **Headline APY and the vault-value chart**: from the latest `fulcrum.results` `headline` section (12.46% APY, 2,497 daily points). *(In progress, landing page and Streamlit.)*
-- **Yearly APY table**: from `fulcrum.year`. *(In progress, Streamlit.)*
-- **Real-trader explorer**: Streamlit reassembles `fulcrum.dataset` parts so users can explore the same 7,036 real positions the backtest replays. *(In progress.)*
+- **Headline APY and the vault-value chart**: from the latest `fulcrum.results` `headline` section (12.46% APY, 2,497 daily points). *(Done, live on `/backtest` page; landing page in progress.)*
+- **Yearly APY table**: from `fulcrum.year`. *(Done, live on `/backtest` page.)*
+- **Crash stress-test matrix & risk claim**: from `fulcrum.crash` across base, stress, and outage scenarios. *(Done, live on `/backtest` page.)*
+- **Real-trader behavior and leverage distribution**: from the `real_traders` section on Arkiv. *(Done, live on `/backtest` page.)*
 - **Remote simulator agents** read the same dataset, so their results match ours exactly.
 
 Already verified end to end against Rabdi: publish (3 txs), then read back the newest headline (APY 12.46%, $0 bad debt), base-scenario crash rows with loss > $0 (none), and stress-scenario losses (COVID $4,933, Oct-10 $2,623). Exact query: [README](README.md#one-query-you-can-run).

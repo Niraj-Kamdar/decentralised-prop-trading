@@ -16,9 +16,10 @@ import { gzipSync } from "node:zlib";
 import { createPublicClient, createWalletClient, ExpirationTime } from "@arkiv-network/sdk";
 import { rabdi } from "@arkiv-network/sdk/chains";
 import { and, desc, eq } from "@arkiv-network/sdk/query";
-import { bytes, dec, defineSchema, str, u64 } from "@arkiv-network/sdk/schema";
+import { dec, u64 } from "@arkiv-network/sdk/schema";
 import { http, isHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { Crash, Dataset, Results, Year } from "../src/lib/arkiv/schema";
 
 for (const f of [".env.local", ".env"]) {
   try {
@@ -31,39 +32,6 @@ for (const f of [".env.local", ".env"]) {
   }
 }
 
-export const Results = defineSchema("fulcrum.results", {
-  run: str().indexed(),
-  section: str().indexed(),
-  published: u64().indexed(),
-  commit: str(),
-  body: bytes(), // gzip(JSON)
-});
-export const Crash = defineSchema("fulcrum.crash", {
-  run: str().indexed(),
-  event: str().indexed(),
-  scenario: str().indexed(),
-  lp_loss_usd: dec().indexed(),
-  lp_loss_pct: dec(),
-  liquidations: u64(),
-  eth_1h: dec(),
-  btc_1h: dec(),
-});
-export const Year = defineSchema("fulcrum.year", {
-  run: str().indexed(),
-  year: str().indexed(),
-  apy: dec().indexed(),
-  volume_x: dec(),
-  util: dec(),
-  win: dec(),
-  bad_debt_usd: dec(),
-});
-export const Dataset = defineSchema("fulcrum.dataset", {
-  run: str().indexed(),
-  name: str().indexed(),
-  part: u64().indexed(),
-  parts: u64(),
-  body: bytes(), // one slice of a gzip file; concatenate parts in order
-});
 
 const CHUNK = 96 * 1024; // bytes per entity (cap 128 KiB) and per transaction, well under node tx-size limits
 const EXPIRY = ExpirationTime.fromDays(180); // max lifetime is ~182.5 days; re-publish to refresh

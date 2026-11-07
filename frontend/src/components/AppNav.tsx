@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/app", label: "Dashboard" },
   { href: "/app/trade", label: "Trade" },
   { href: "/app/earn", label: "Earn" },
+  { href: "/backtest", label: "Backtest" },
 ];
 
 function Banner({ children }: { children: ReactNode }) {
