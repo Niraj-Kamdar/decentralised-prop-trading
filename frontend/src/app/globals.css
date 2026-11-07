@@ -166,3 +166,14 @@ input[type="range"] {
     scroll-behavior: auto;
   }
 }
+
+/* Landing hero: the ten $100 blocks stack in once on load. */
+@keyframes block-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.block-in {
+  animation: block-in 0.45s var(--ease) both;
+}
