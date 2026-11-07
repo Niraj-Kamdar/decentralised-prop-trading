@@ -35,5 +35,15 @@ contract DeployBase is Script {
         console2.log("InsuranceReserve", address(d.insurance));
         console2.log("PositionManager ", address(d.pm));
         console2.log("TraderProxy impl", d.pm.proxyImplementation());
+
+        string memory j = "base_mainnet";
+        vm.serializeAddress(j, "chainlinkOracle", address(d.oracle));
+        vm.serializeAddress(j, "v4SwapRouter", address(d.router));
+        vm.serializeAddress(j, "lpVault", address(d.vault));
+        vm.serializeAddress(j, "insuranceReserve", address(d.insurance));
+        vm.serializeAddress(j, "positionManager", address(d.pm));
+        vm.serializeAddress(j, "traderProxyImpl", d.pm.proxyImplementation());
+        string memory json = vm.serializeAddress(j, "governance", governance);
+        vm.writeJson(json, "deployments/base-mainnet.json");
     }
 }
