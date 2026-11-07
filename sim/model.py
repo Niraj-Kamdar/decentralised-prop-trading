@@ -33,6 +33,7 @@ class LevelConfig:
     promote_min_trades: int = 5
     promote_min_pnl: float = 25.0  # 6-dec USDC
     demote_max_loss: float = 0.0  # 0 = never demote
+    promote_min_roi: float = 0.0  # >0: promote on pnl >= roi * margin traded at this level, instead of promote_min_pnl
 
 
 # Base mainnet MVP defaults (script/lib/ProtocolDeployer.sol: deployBase)
@@ -120,6 +121,9 @@ class Trader:
     level: int = 0
     trades: int = 0
     pnl: float = 0.0
+    margin: float = 0.0  # margin of the trades counted since entering this level (for percent-based promotion)
+    n_after: int = 0  # trades closed after first promotion, and their net pnl: do levels promote skill or luck?
+    pnl_after: float = 0.0
     promoted_l1_t: int = -1
     promoted_l2_t: int = -1
     tpl: int = -1  # empirical demand: index of the real Hyperliquid trader this one imitates
@@ -550,12 +554,12 @@ class Sim:
         if 0 <= trader_idx < len(self.traders):
             tr_obj = self.traders[trader_idx]
             trade_pnl = trader - P["M"][i]
-            self._record_result(tr_obj, trade_pnl, hold_m, t)
+            self._record_result(tr_obj, trade_pnl, hold_m, t, P["M"][i])
 
         self.open.remove(i)
         self.dirty = True
 
-    def _record_result(self, trader, pnl, hold_m, t=0):
+    def _record_result(self, trader, pnl, hold_m, t=0, margin=0.0):
         """Update trader stats and promote or demote according to PositionManager._recordResult."""
         p = self.p
         lvl = trader.level
@@ -565,9 +569,13 @@ class Sim:
         if p.promote_min_hold_h > 0 and hold_m < p.promote_min_hold_h * 60:
             counts_for_promotion = False
 
+        if trader.promoted_l1_t >= 0:
+            trader.n_after += 1
+            trader.pnl_after += pnl
         if counts_for_promotion:
             trader.trades += 1
             trader.pnl += pnl
+            trader.margin += margin
         elif pnl < 0:
             trader.pnl += pnl  # losses still count towards demotion
 
@@ -576,13 +584,13 @@ class Sim:
             new_lvl = lvl - 1
         elif (lvl + 1 in p.levels and p.levels[lvl + 1].enabled
               and trader.trades >= l.promote_min_trades
-              and trader.pnl >= l.promote_min_pnl):
+              and trader.pnl >= (l.promote_min_roi * trader.margin if l.promote_min_roi > 0 else l.promote_min_pnl)):
             new_lvl = lvl + 1
 
         if new_lvl != lvl:
             trader.level = new_lvl
             trader.trades = 0
-            trader.pnl = 0.0
+            trader.pnl = trader.margin = 0.0
             if new_lvl == 1 and trader.promoted_l1_t < 0:
                 trader.promoted_l1_t = t
             elif new_lvl == 2 and trader.promoted_l2_t < 0:

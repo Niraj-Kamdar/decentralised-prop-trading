@@ -135,4 +135,27 @@ s.open_position(20, 0, 10, 30_000, hold=NEVER)  # $270k borrowed
 s.run()
 assert s.borrowed / s.ta() <= 0.85 + 1e-9 and s.queue > 0  # exits wait in the queue
 
+# 10. Level sweep knobs: defaults unchanged; percent threshold promotes a $50 trader at +50% return, not +10%.
+assert (Params().levels[0].promote_min_roi, Params().levels[0].promote_min_pnl) == (0.0, 25.0)
+from dataclasses import replace as _rep
+def _lv(**kw):
+    lv = {k: _rep(v) for k, v in Params().levels.items()}
+    lv[0] = _rep(lv[0], **kw)
+    return Params(levels=lv)
+s = Sim(np.full((2, 100), 2000.0), _lv(promote_min_trades=0, promote_min_roi=0.5), tvl=1e6)
+a, b = s.get_trader(0), s.get_trader(1)
+s._record_result(a, 24.0, 100, 0, 50.0)   # +48% < 50%
+assert a.level == 0
+s._record_result(b, 25.0, 100, 0, 50.0)   # +50%
+assert b.level == 1 and b.margin == 0.0
+s._record_result(b, 5.0, 100, 0, 50.0)    # post-promotion tracking
+assert (b.n_after, b.pnl_after) == (1, 5.0)
+# faster count/pnl thresholds promote earlier; demotion untouched (L1 still drops at -$50)
+s = Sim(np.full((2, 100), 2000.0), _lv(promote_min_trades=0, promote_min_pnl=10.0), tvl=1e6)
+c = s.get_trader(0)
+s._record_result(c, 10.0, 100, 0, 50.0)
+assert c.level == 1
+s._record_result(c, -49.0, 100, 0, 50.0); assert c.level == 1
+s._record_result(c, -1.0, 100, 0, 50.0); assert c.level == 0
+
 print("ok")
