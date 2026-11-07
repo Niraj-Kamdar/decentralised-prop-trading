@@ -108,7 +108,7 @@ contract WithdrawalQueueTest is BaseTest {
 
         assertApproxEqAbs(vault.bonusPot(), 5_000e6, 2);
         assertApproxEqAbs(vault.convertToAssets(vault.balanceOf(lp)), 105_000e6, 2);
-        assertApproxEqAbs(vault.costBasis(lp), 100_000e6, 1, "basis restored");
+        assertApproxEqAbs(vault.costBasis(lp), 95_454_545_455, 1, "basis restored proportionally to kept shares");
         assertEq(vault.pendingRedeemAssets(), 0);
         vm.expectRevert(abi.encodeWithSelector(LPVault.RequestNotPending.selector, id));
         vm.prank(lp);

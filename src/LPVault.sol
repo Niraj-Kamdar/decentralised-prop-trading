@@ -186,6 +186,7 @@ contract LPVault is
     error TicketMatured(uint64 maturesAt);
     error AllocationBlockedByQueue(uint256 requested, uint256 available);
     error Denied(address account);
+    error ZeroAssets();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -403,7 +404,7 @@ contract LPVault is
 
         pendingRedeemAssets -= r.assetsAtRequest;
         totalPendingShares -= shares;
-        costBasis[controller] += r.basis;
+        costBasis[controller] += Math.mulDiv(r.basis, keep, shares);
         r.status = RequestStatus.CANCELLED;
         r.shares = 0;
         r.basis = 0;
@@ -538,11 +539,17 @@ contract LPVault is
         if (receiver == address(0)) revert ZeroAddress();
         _checkNotDenied(msg.sender);
         _checkNotDenied(receiver);
-        uint256 maxDep = maxDeposit(receiver);
-        if (assets > maxDep) revert ERC4626ExceededMaxDeposit(receiver, assets, maxDep);
+        uint256 maxDep = maxDeposit(msg.sender);
+        if (assets > maxDep) revert ERC4626ExceededMaxDeposit(msg.sender, assets, maxDep);
+        if (receiver != msg.sender) {
+            uint256 maxRecv = maxDeposit(receiver);
+            if (assets > maxRecv) revert ERC4626ExceededMaxDeposit(receiver, assets, maxRecv);
+        }
         if (!isStressed()) revert NotStressed();
         if (assets < minBonusDeposit) revert BelowMinBonusDeposit(assets, minBonusDeposit);
         _accrueBonus();
+
+        costBasis[msg.sender] += assets;
 
         uint256 shares = previewDeposit(assets);
         _deposit(msg.sender, address(this), assets, shares);
@@ -564,6 +571,7 @@ contract LPVault is
 
     /// @notice After maturity (callable by anyone): unlock the shares to the owner and mint the bonus as shares.
     function claimTicket(uint256 ticketId) external nonReentrant returns (uint256 bonusShares) {
+        if (totalAssets() == 0) revert ZeroAssets();
         BonusTicket storage t = _tickets[ticketId];
         if (!t.active) revert TicketNotActive(ticketId);
         if (block.timestamp < t.maturesAt) revert TicketNotMatured(t.maturesAt);
@@ -742,8 +750,21 @@ contract LPVault is
     function migrateMorphoVault(IERC4626 newVault) external onlyOwner nonReentrant {
         if (address(newVault) != address(0) && newVault.asset() != asset()) revert InvalidAsset();
         IERC4626 old = morphoVault;
-        uint256 shares = address(old) == address(0) ? 0 : old.balanceOf(address(this));
-        uint256 moved = shares == 0 ? 0 : old.redeem(shares, address(this), address(this));
+        uint256 moved;
+        if (address(old) != address(0)) {
+            uint256 shares = old.balanceOf(address(this));
+            if (shares > 0) {
+                uint256 toRedeem = shares;
+                try old.maxRedeem(address(this)) returns (uint256 maxR) {
+                    toRedeem = Math.min(shares, maxR);
+                } catch {}
+                if (toRedeem > 0) {
+                    try old.redeem(toRedeem, address(this), address(this)) returns (uint256 assetsMoved) {
+                        moved = assetsMoved;
+                    } catch {}
+                }
+            }
+        }
         morphoVault = newVault;
         emit MorphoVaultMigrated(address(old), address(newVault), moved);
         _supplyIdle();
@@ -824,13 +845,13 @@ contract LPVault is
         if (msg.sender != controller && !isOperator[controller][msg.sender]) revert NotAuthorized();
     }
 
-    /// @dev Basis attributed to `shares` of `account`, rounded up and capped at the account's basis.
+    /// @dev Basis attributed to `shares` of `account`, rounded down and capped at the account's basis.
     function _basisPortion(address account, uint256 shares) internal view returns (uint256) {
         uint256 bal = balanceOf(account);
         uint256 basis = costBasis[account];
         if (bal == 0 || basis == 0) return 0;
         if (shares >= bal) return basis;
-        return Math.min(basis, basis.mulDiv(shares, bal, Math.Rounding.Ceil));
+        return Math.min(basis, basis.mulDiv(shares, bal, Math.Rounding.Floor));
     }
 
     /// @dev Fulfil up to `budget` USDC of request `r`. Returns the payout, or type(uint256).max if not even one
@@ -907,7 +928,6 @@ contract LPVault is
         totalTicketWeight -= weight;
         t.active = false;
         address owner = t.owner;
-        costBasis[owner] += t.basis;
         _transfer(address(this), owner, t.shares);
     }
 
@@ -928,10 +948,16 @@ contract LPVault is
 
     function _accrueBonus() internal {
         (uint256 increment, uint256 emitted) = _pendingEmission();
-        lastBonusUpdate = block.timestamp;
+        if (totalTicketWeight == 0 || bonusPot == 0) {
+            lastBonusUpdate = block.timestamp;
+            return;
+        }
         if (increment == 0) return;
+        lastBonusUpdate = block.timestamp;
         accBonusPerWeight += increment;
         bonusPot -= emitted;
         bonusAccrued += emitted;
     }
+
+    uint256[50] private __gap;
 }
