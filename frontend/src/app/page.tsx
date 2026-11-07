@@ -3,12 +3,32 @@ import Link from "next/link";
 import { CrashTimeline, Endings, Flow, LeverBar, Levels } from "@/components/landing/Illustrations";
 import { WaitlistForm } from "@/components/landing/WaitlistForm";
 import { Logo } from "@/components/Logo";
+import { getBacktest } from "@/lib/arkiv/read";
 import { APP_NAME, SITE_DESCRIPTION, SITE_URL, TAGLINE } from "@/lib/config";
+import { pct, usd0 } from "@/lib/format";
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
+export const revalidate = 3600;
 
-// Backtest run 5847faa, as published to Arkiv. Swap for getBacktest() once /backtest (feat/backtest-page) merges.
-const PROOF = { apy: "12.46%", years: "6.8", trades: "6,967", crashes: 7, stressWorst: "0.49%" };
+// Shown only when Arkiv is unreachable: run df74b20, as published.
+const FALLBACK = { apy: "5.07%", years: "6.8", trades: "6,967", crashes: 7, stressWorstUsd: 0 };
+const STRESS = ["stress", "stress_outage_30m"];
+
+async function getProof() {
+  const b = await getBacktest();
+  if (!b) return { ...FALLBACK, loss: {} as Record<string, number> };
+  const { headline, real_traders } = b.sections;
+  const years = (Date.parse(headline.end) - Date.parse(headline.start)) / (365.25 * 864e5);
+  const base = b.crashes.filter((c) => c.scenario === "base");
+  return {
+    apy: pct(headline.apy, 2),
+    years: years.toFixed(1),
+    trades: real_traders.sample.positions.toLocaleString("en-US"),
+    crashes: base.length,
+    stressWorstUsd: Math.max(0, ...b.crashes.filter((c) => STRESS.includes(c.scenario)).map((c) => c.lp_loss_usd)),
+    loss: Object.fromEntries(base.map((c) => [c.event, c.lp_loss_usd])),
+  };
+}
 
 const TRADER_POINTS = [
   "Up to 10x on real ETH and BTC, not a synthetic perp",
@@ -17,14 +37,14 @@ const TRADER_POINTS = [
   "The most you can lose is your deposit",
 ];
 
-const LENDER_POINTS = [
+const lenderPoints = (apy: string, years: string) => [
   "Earn 7–15% of every winning trade, plus borrowing fees",
   "Traders' deposits and an insurance fund take losses before you",
-  `${PROOF.apy} a year in our ${PROOF.years}-year backtest`,
+  `${apy} a year in our ${years}-year backtest`,
   "Withdraw any time, paid out within 30 days",
 ];
 
-const FAQ = [
+const faq = (PROOF: Awaited<ReturnType<typeof getProof>>) => [
   {
     q: "What is decentralised prop trading?",
     a: "A prop firm gives traders capital and splits the profits. Here a smart contract does that job: lenders fund an on-chain vault, traders borrow from it with up to 10x leverage, and profits are split automatically when a trade closes. No challenges, no evaluation fees, no payout reviews.",
@@ -51,7 +71,7 @@ const FAQ = [
   },
   {
     q: "Can lenders lose money?",
-    a: `Yes, if a crash is fast enough that a trader's deposit and the insurance fund can't cover it. In our backtest it never happened across ${PROOF.crashes} crashes. In our harshest stress test, with an empty insurance fund, the worst loss was ${PROOF.stressWorst}. All results are public on Arkiv.`,
+    a: `Yes, if a crash is fast enough that a trader's deposit and the insurance fund can't cover it. In our backtest it never happened across ${PROOF.crashes} crashes. ${stressLine(PROOF.stressWorstUsd, "In our harshest stress test, with an empty insurance fund,")} All results are public on Arkiv.`,
   },
   {
     q: "How does Fulcrum make money?",
@@ -63,6 +83,10 @@ const FAQ = [
   },
 ];
 
+// $0 reads as "none lost", anything else as the worst-case dollar loss.
+const stressLine = (usd: number, lead: string) =>
+  usd < 0.5 ? `${lead} lenders lost $0 in every crash.` : `${lead} the worst crash cost lenders ${usd0(usd)}.`;
+
 function Arrow({ className = "" }: { className?: string }) {
   return (
     <svg className={`h-3.5 w-3.5 shrink-0 ${className}`} viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -71,7 +95,7 @@ function Arrow({ className = "" }: { className?: string }) {
   );
 }
 
-const JSON_LD = {
+const jsonLd = (FAQ: ReturnType<typeof faq>) => ({
   "@context": "https://schema.org",
   "@graph": [
     { "@type": "Organization", name: APP_NAME, url: SITE_URL, logo: `${SITE_URL}/icon.svg` },
@@ -90,9 +114,13 @@ const JSON_LD = {
       mainEntity: FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
     },
   ],
-};
+});
 
-export default function Landing() {
+export default async function Landing() {
+  const PROOF = await getProof();
+  const FAQ = faq(PROOF);
+  const JSON_LD = jsonLd(FAQ);
+  const LENDER_POINTS = lenderPoints(PROOF.apy, PROOF.years);
   return (
     <div className="overflow-x-clip">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD).replace(/</g, "\\u003c") }} />
@@ -218,7 +246,7 @@ export default function Landing() {
             <dl className="mt-10 grid gap-6 sm:grid-cols-3">
               {[
                 [PROOF.apy, "average lender APY"],
-                ["$0", `lender losses across ${PROOF.crashes} crashes`],
+                [usd0(Object.values(PROOF.loss).reduce((a, b) => a + b, 0)), `lender losses across ${PROOF.crashes} crashes`],
                 ["$0", "bad debt"],
               ].map(([v, l]) => (
                 <div key={l}>
@@ -228,11 +256,14 @@ export default function Landing() {
               ))}
             </dl>
             <div className="mt-12 rounded-lg bg-white p-6 text-fg">
-              <CrashTimeline />
+              <CrashTimeline loss={PROOF.loss} />
             </div>
             <p className="mt-6 max-w-[70ch] text-sm text-white/70">
-              In our harshest stress test (thin liquidity, every trader at 10x, keepers offline for 30 minutes and an empty insurance
-              fund), lenders lost {PROOF.stressWorst} in the worst crash. We show that too.
+              {stressLine(
+                PROOF.stressWorstUsd,
+                "In our harshest stress test (thin liquidity, every trader at 10x, keepers offline for 30 minutes and an empty insurance fund),",
+              )}{" "}
+              We show that too.
             </p>
             <Link href="/backtest" className="btn mt-8 bg-white px-5 py-3 text-base text-brand hover:bg-white/90">
               See the full backtest <Arrow />
